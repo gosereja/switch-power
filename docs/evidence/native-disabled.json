@@ -1,0 +1,22 @@
+{
+  "native_version": "codex-cli 0.166.0-alpha.6",
+  "mode": "disabled",
+  "projects": [
+    {
+      "skill_names": [],
+      "skill_scope": [],
+      "hooks": [],
+      "loader_errors": []
+    },
+    {
+      "skill_names": [],
+      "skill_scope": [],
+      "hooks": [],
+      "loader_errors": []
+    }
+  ],
+  "global_bootstrap_present": false,
+  "bootstrap_injected_into_model": "not_tested_no_new_chat_created",
+  "actual_hook_interception": "not_tested_requires_trusted_hook_and_real_turn",
+  "backend_model_attestation": "not_available_from_discovery"
+}
