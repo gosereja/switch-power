@@ -30,17 +30,17 @@ Open `/hooks` in Codex CLI and review the Switch Power hooks. Approve the ones y
 
 ## Use
 
-Give Codex a normal request such as “Count the `.py` files in `scripts/`.” When a suitable lightweight executor is available, the coordinator delegates the count and checks the result. Your current chat model receives the next request and chooses the route again.
+Give Codex a normal request such as “Count the `.py` files in `scripts/`.” The coordinator handles short reads, counts and comparisons directly. It delegates when the expected benefit covers setup and verification, or when you explicitly request a subagent. It reevaluates each request in the current chat.
 
 The coordinator selects the model and reasoning effort of each native subagent. The verified V2 tool schema requires `fork_turns: "none"` for explicit overrides, so the coordinator passes the relevant context, boundaries, and acceptance criteria in the assignment. Codex controls the model of the main chat.
 
 ## Model and token usage
 
-Switch Power 0.1.3 emits a one-line Codex hook notice after the answer, for example `Switch Power · gpt-6.1-sol + gpt-6-luna · 31,873 tokens`. In the desktop app, review the new hooks in **Settings → Hooks**. In Codex CLI use `/hooks`. The notice uses Codex’s native warning channel, so its placement depends on the client.
+Switch Power 0.1.4 emits a one-line Codex hook notice after the answer, for example `Switch Power · gpt-6.1-sol + gpt-6-luna · 31,873 tokens`. In the desktop app, review the new hooks in **Settings → Hooks**. In Codex CLI use `/hooks`. The notice uses Codex’s native warning channel, so its placement depends on the client.
 
 The total includes input (including cached input) and output reported by Codex for the coordinator and attributed workers. If known usage is missing, the notice says `partial` or `token usage unavailable`. See the [live benchmark and reproduction steps](docs/usage-benchmark.md).
 
-On three small file tasks, Switch Power used 7.18× as many raw tokens as standalone Sol/high across six valid pairs.
+On six fresh paired runs, 0.1.4 used 11.0% fewer raw tokens than standalone Sol/high in total. All plugin runs handled the work directly.
 
 ## Coordinator settings
 
@@ -75,8 +75,8 @@ Version 0.1.2 passed 31 tests and a fresh installation from the archive on macOS
 
 Hooks validate the requested model, effort, task scope, and recorded consent for calls they intercept. The coordinator interprets whether a request starts a new task and whether the user's message grants consent. Temporary state includes the latest prompt for matching a consent quote and is cleared on `finish`. A successful spawn shows that Codex accepted the request. Backend model attestation requires separate Codex metadata.
 
-- [Architecture and troubleshooting (Russian)](docs/architecture.md)
-- [Verification report (Russian)](docs/verification.md)
+- [Architecture and troubleshooting](docs/architecture.md)
+- [Verification report](docs/verification.md)
 - [Requirements](specs/001-global-coordinator/spec.md) · [Implementation plan](specs/001-global-coordinator/plan.md) · [Spec Kit tasks](specs/001-global-coordinator/tasks.md)
 
 [Codex plugins](https://developers.openai.com/plugins/build/plugins) · [Global AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md) · [Codex hooks](https://learn.chatgpt.com/docs/hooks) · [GitHub Spec Kit](https://github.com/github/spec-kit)

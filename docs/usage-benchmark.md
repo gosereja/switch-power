@@ -16,7 +16,22 @@ python3 scripts/benchmark_usage.py --repeats 2 --output usage-benchmark.jsonl
 
 It runs three deterministic file tasks in fresh ephemeral Codex sessions, with two paired repetitions per task. Each run uses GPT-6.1 Sol at high in the main session, the same synthetic project and workspace-write sandbox. The baseline disables native subagent features and instructs the coordinator to work alone. A control is rejected if native workers are still observed. The plugin profile enables the native V2 agent tool and loads Switch Power through the real installer. The default command reverses the order for the second repetition. Both profiles use the same measurement hooks, which record numeric usage and native model and worker identifiers. We check the final answer, compare the coordinator event totals with the CLI's total, and require start, usage and stop events for each worker. Cached counts are recorded separately. Raw token totals are not a measure of credits or subscription quota.
 
-## Measured results
+## Version 0.1.4 measurements
+
+Fresh runs on the same three prompts and fixture used Codex CLI `0.166.0-alpha.6` on macOS on November 5, 2026. All 12 runs returned the expected answer and passed the usage checks. Both arms recorded zero workers on these tasks. An additional test with an explicit Luna/low request returned the correct port and completed one native Luna worker. That test is separate from the comparison.
+
+| Task | Sol/high alone, tokens | Switch Power 0.1.4, tokens | Plugin change | Solo median time | Plugin median time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Look up one port in TOML | 59,878 | 65,744 | +9.8% | 10.10 s | 10.77 s |
+| Count Python files | 64,611 | 70,462 | +9.1% | 10.47 s | 12.17 s |
+| Sum pending amounts in two CSVs | 153,496 | 111,233 | -27.5% | 22.66 s | 20.70 s |
+| All six pairs | 277,985 | 247,439 | -11.0% | 11.46 s | 12.26 s |
+
+Switch Power 0.1.4 used **11.0% fewer raw tokens** than fresh standalone Sol/high runs, and **87.4% fewer** than version 0.1.3 on the same suite. The TOML and file count tasks used more tokens with 0.1.4. The savings in the combined sample came from the CSV task. The baseline counted 208,640 cached input tokens, and the plugin counted 164,096. The small sample does not establish a general savings rate.
+
+[Per-run evidence for 0.1.4](evidence/usage-benchmark-0.1.4.jsonl).
+
+## Version 0.1.3 measurements
 
 Codex CLI `0.166.0-alpha.6`, macOS, November 5, 2026. All 12 included runs returned the expected answer and passed the usage coverage checks. Every included baseline ran on GPT-6.1 Sol/high alone. Every plugin run used Sol/high and one or two native Luna workers.
 

@@ -1,6 +1,6 @@
 ---
 name: coordinate
-description: Automatically route ordinary user requests from the main Codex chat. Decide whether to use native subagents, select their model and reasoning effort, and check task-scoped permission before dispatch.
+description: Use before delegating work to native subagents. Verify models, reasoning effort and task-scoped permission. Handle routine reads, counts and small comparisons directly.
 ---
 
 # Switch Power coordinator
@@ -9,15 +9,17 @@ Keep task control, verification and the final user answer in the original chat.
 Assess the work anew on every user request, including consecutive requests in this
 chat. The user supplies the task; choose the executor and effort yourself.
 
-- For simple bounded execution, such as counting files or checking links, prefer
-  a verified lightweight native executor, normally Luna/low. The coordinator
-  dispatches and verifies. Use a compatible alternative if needed.
-- Answer conversational questions directly when no separate execution is useful.
-  Also work directly when required tools or context are exclusive to the main chat,
-  or delegation is unavailable. Skip runtime setup when answering directly.
-- For complex work, split only genuinely independent parts. Pick effort for each
-  part based on ambiguity, constraints and cost of error, starting at the lowest
-  sufficient level. A low-cost launch from the last turn is not a default for this one.
+- Do a short, predictable tool pass directly. Examples include a config lookup,
+  a file count, a small edit, and two short checks that can share one command.
+  Skip delegation setup, catalogue discovery and state commands for direct work.
+- For a bounded task, delegate automatically only when a concrete reduction in
+  expected total work outweighs the brief, launch, worker context, coordination
+  and result verification. A large batch of genuinely independent checks can
+  meet this threshold. A cheaper worker model by itself does not. If uncertain,
+  work directly. For larger work, a clear quality or latency gain can justify
+  delegation. Split only independent work and choose the lowest sufficient effort.
+- An explicit request to use a subagent takes precedence over the cost preference.
+  All model, tool and consent checks still apply.
 
 Separate user-owned chats require a direct user request. Follow-up corrections
 continue the same task and its exact consent scope. A new independent objective

@@ -1,55 +1,35 @@
-# Архитектура Switch Power
+# Switch Power architecture
 
-Координатор получает запрос в основном чате и оценивает, можно ли поручить
-отдельную работу субагенту. При делегировании он сопоставляет свежий каталог
-моделей со схемой доступного инструмента запуска. Затем выбирает исполнителя,
-уровень рассуждений и границы работы, проверяет разрешение и вызывает штатный
-spawn. Проверка результата и ответ выполняются в исходном чате.
+The coordinator receives each request in the main chat. When delegating, it checks the current model catalogue against the available spawn tool schema. It selects the executor and reasoning effort, defines the scope, verifies consent, and uses the native spawn tool. The coordinator reviews the result and replies in the original chat.
 
-| Компонент | Назначение |
+| Component | Purpose |
 | --- | --- |
-| [`skills/coordinate`](../plugins/switch-power/skills/coordinate/SKILL.md) | Правила выбора исполнителя, координации и проверки результата. |
-| [`scripts/policy.py`](../plugins/switch-power/scripts/policy.py) | Проверки доступности моделей, разрешений и областей работы. |
-| [`scripts/runtime.py`](../plugins/switch-power/scripts/runtime.py) | Каталог Codex, локальное состояние задач и CLI проверок. |
-| [`hooks/guard.py`](../plugins/switch-power/hooks/guard.py) | Связь с событиями Codex и проверки вызовов, которые проходят через `PreToolUse`. |
-| [`scripts/install.py`](../scripts/install.py) | Глобальная установка, отключение и удаление плагина. |
-| [`scripts/configure.py`](../scripts/configure.py) | Настройка и восстановление модели основного чата. |
+| [`skills/coordinate`](../plugins/switch-power/skills/coordinate/SKILL.md) | Executor selection, coordination, and result review. |
+| [`scripts/policy.py`](../plugins/switch-power/scripts/policy.py) | Model availability, consent, and scope checks. |
+| [`scripts/runtime.py`](../plugins/switch-power/scripts/runtime.py) | Native catalogue, local task state, and verification CLI. |
+| [`hooks/guard.py`](../plugins/switch-power/hooks/guard.py) | Codex lifecycle events and launch checks via `PreToolUse`. |
+| [`scripts/install.py`](../scripts/install.py) | Global installation, disabling, and removal. |
+| [`scripts/configure.py`](../scripts/configure.py) | Configure or restore the main chat model. |
 
-## Жизненный цикл задачи
+## Task lifecycle
 
-1. Для обычного запроса координатор решает, нужна ли отдельная работа. Прямые ответы проходят без подготовки делегирования.
-2. При делегировании CLI регистрирует задачу и границы работы субагента. Вызов явно указывает модель и reasoning effort, если схема Codex это поддерживает.
-3. Для Astra или уровня выше `high` координатор получает согласие на модель, уровень и объём работы. Согласие относится к текущей задаче. Независимая задача начинает новый цикл.
-4. Координатор принимает результат через штатный жизненный цикл субагента, проверяет его и отвечает. `finish` очищает состояние задачи.
+1. The coordinator handles short local work directly. Before delegating, it weighs the gain against setup, worker time, and verification. An explicit request for a worker still uses the normal consent checks.
+2. For delegation, the CLI registers the task and worker scope. The native call specifies the model and reasoning effort when the Codex schema supports them.
+3. Astra and efforts above `high` require consent for the exact model, effort, and work scope. Consent is valid for the current task. An independent task starts a new cycle.
+4. The coordinator gets the worker result through the native lifecycle, checks it, and replies. The `finish` command clears task state.
 
-Основная модель задаётся в конфигурации Codex. Переключение для конкретной
-работы реализовано через параметры штатного субагента. Основной чат принимает
-следующий пользовательский запрос и оценивает его заново.
+Codex configuration sets the main model. Native subagent parameters select the executor for specific work. The main chat receives and reassesses the next request.
 
-В проверенной схеме Codex V2 запуск с явными моделью и уровнем использует
-`fork_turns: "none"`. Координатор передаёт в задании только нужный контекст,
-ограничения и критерии результата.
+With the verified Codex V2 schema, explicit model and effort use `fork_turns: "none"`. The coordinator puts the required context, constraints, and acceptance criteria in the assignment.
 
-## Каталог и состояние
+## Catalogue and state
 
-Установщик получает каталог через `model/list`. Доверенный обработчик запроса
-пытается обновить просроченный снимок. Перед запуском CLI дополнительно проверяет
-совместимость с текущей схемой spawn и давность данных.
+The installer obtains the catalogue through `model/list`. The CLI refreshes expired data while preparing delegation and checks age and compatibility with the current spawn schema.
 
-Состояние задачи хранится в закрытом временном каталоге пользователя. В нём
-есть сведения об области работы и последний запрос для привязки согласия.
-Каталог моделей хранится отдельно в профиле Codex. Формат команд описан в
-[справочнике runtime](../plugins/switch-power/skills/coordinate/references/runtime.md).
+Task state lives in a private user temporary directory. It records scope and the latest request to bind consent. The model catalogue lives separately in the Codex profile. [Runtime command reference](../plugins/switch-power/skills/coordinate/references/runtime.md).
 
-## Диагностика
+## Troubleshooting
 
-Запустите `python3 scripts/verify_native.py` из клона или распакованного архива.
-В Windows используйте `py -3 scripts/verify_native.py`.
-Команда проверяет обнаружение навыка и состояние обработчиков в двух каталогах.
-Если нужный обработчик отмечен `untrusted`, откройте `/hooks` в Codex CLI и
-проверьте его определение. В случае отказа штатного запуска координатор
-сообщает точную причину и выбирает доступный маршрут.
+Run `python3 scripts/verify_native.py` from the clone or extracted archive. On Windows use `py -3 scripts/verify_native.py`. The command checks skill discovery and hook state in two directories. If a required hook is `untrusted`, inspect its definition via `/hooks` in Codex CLI. When a native launch fails, the coordinator reports the reason and chooses an available route.
 
-Покрытие hooks зависит от маршрута вызова в Codex. Семантическую оценку запроса
-и согласия выполняет координатор. Границы проверки и воспроизводимые результаты
-описаны в [отчёте](verification.md).
+Hook coverage depends on the Codex tool path. The coordinator interprets task boundaries and user consent. [Verification report](verification.md).

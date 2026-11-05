@@ -113,6 +113,18 @@ class RuntimeTests(unittest.TestCase):
             'task_name': name, 'fork_turns': 'none'})
         self.assertNotEqual(r['hookSpecificOutput'].get('permissionDecision'), 'deny')
 
+    def test_user_prompt_preserves_consent_capture_without_catalogue_discovery(self):
+        runtime.profile_catalogue_path().unlink()
+        with patch.object(guard, 'fetch_models', side_effect=RuntimeError('Discovery invoked'),
+                          create=True) as discovery:
+            result = self.event('UserPromptSubmit', prompt='Count the Python files.')
+        discovery.assert_not_called()
+        self.assertIn('directly', result['hookSpecificOutput']['additionalContext'])
+        with self.store.session(self.session) as state:
+            self.assertEqual(state['prompt'], 'Count the Python files.')
+            self.assertEqual(state['turn_id'], 't1')
+            self.assertTrue(state['needs_resolution'])
+
     def test_new_task_resets_previous_grant(self):
         self.event('UserPromptSubmit', prompt='Используй Astra/xhigh')
         self.ready()
@@ -183,6 +195,14 @@ for line in sys.stdin:
             runtime.atomic_json(runtime.profile_catalogue_path(), c)
             with self.assertRaisesRegex(RuntimeError, 'catalogue'):
                 runtime.routing_catalogue('/missing/codex')
+
+    def test_lazy_catalogue_refresh_is_reused_by_the_next_delegation(self):
+        runtime.profile_catalogue_path().unlink()
+        fresh = {'fetched_at': time.time(), 'data': [{'id': 'gpt-6-luna'}]}
+        with patch.object(runtime, 'fetch_models', return_value=fresh) as fetch:
+            self.assertEqual(runtime.routing_catalogue('codex'), fresh)
+            self.assertEqual(runtime.routing_catalogue('codex'), fresh)
+        fetch.assert_called_once_with('codex')
 
     def test_incomplete_prompt_cannot_leave_old_consent_active(self):
         name = self.ready()

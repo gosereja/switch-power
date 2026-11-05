@@ -245,9 +245,15 @@ def routing_catalogue(codex):
     if value is not None:
         return value
     try:
-        return fetch_models(codex)
+        value = fetch_models(codex)
     except (OSError, RuntimeError) as exc:
         raise RuntimeError('No fresh native model catalogue. Switch Power could not refresh it: ' + str(exc)) from exc
+    try:
+        atomic_json(profile_catalogue_path(), value)
+    except (OSError, ValueError):
+        # A read-only profile can still use this fresh per-session snapshot.
+        pass
+    return value
 
 
 def parser():

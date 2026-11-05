@@ -28,16 +28,16 @@ py -3 scripts/setup.py
 
 ## 使用
 
-直接向 Codex 提出普通请求，例如“统计 `scripts/` 中的 `.py` 文件”。协调代理会选择执行者、核查结果，并在原对话中回复。在已验证的 V2 工具接口中，显式指定模型和推理强度时使用 `fork_turns: "none"`，协调代理会在任务说明中提供必要上下文。主对话模型由 Codex 管理。
+直接向 Codex 提出普通请求，例如“统计 `scripts/` 中的 `.py` 文件”。协调代理会直接完成简短的读取、计数和比较。当预期收益足以覆盖启动和核查成本，或你明确要求使用子代理时，它才会委派任务。在已验证的 V2 工具接口中，显式指定模型和推理强度时使用 `fork_turns: "none"`，协调代理会在任务说明中提供必要上下文。主对话模型由 Codex 管理。
 
 ## 模型和令牌用量
 
-Switch Power 0.1.3 在回复后发出一条 Codex 提示，列出协调代理及可归属子代理的模型和令牌总数。请在应用的 **Settings → Hooks** 或 CLI 的 `/hooks` 中批准新的 hook。数据不全时，提示会显示 `partial` 或 `token usage unavailable`。提示的位置取决于 Codex 客户端。[实测结果和复现步骤](docs/usage-benchmark.md)。
+Switch Power 0.1.4 在回复后发出一条 Codex 提示，列出协调代理及可归属子代理的模型和令牌总数。请在应用的 **Settings → Hooks** 或 CLI 的 `/hooks` 中批准新的 hook。数据不全时，提示会显示 `partial` 或 `token usage unavailable`。提示的位置取决于 Codex 客户端。[实测结果和复现步骤](docs/usage-benchmark.md)。
 
-在三个小型文件任务的六组有效对照中，Switch Power 的令牌用量是单独使用 Sol/high 的 7.18 倍。
+在六组新的对照测试中，0.1.4 的总令牌用量比单独使用 Sol/high 少 11.0%。插件直接完成了所有任务。
 
 ## 停用和卸载
 
 在项目目录中执行 `python3 scripts/install.py disable` 即可停用插件。将 `disable` 换成 `enable` 可重新启用，换成 `remove` 可卸载。在 Windows 上用 `py -3` 替换 `python3`。使用 `scripts/configure.py restore` 单独恢复协调代理原先的模型和推理强度。
 
-0.1.2 版已通过 31 项测试，并在 macOS 上完成全新安装验证。原生 Windows Codex 的端到端验证仍待完成。详细信息见俄语版[验证报告](docs/verification.md)和[架构文档](docs/architecture.md)。
+0.1.2 版已通过 31 项测试，并在 macOS 上完成全新安装验证。原生 Windows Codex 的端到端验证仍待完成。详细信息见[验证报告](docs/verification.zh-CN.md)和[架构文档](docs/architecture.zh-CN.md)。

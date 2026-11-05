@@ -19,18 +19,13 @@ BEGIN = '<!-- switch-power:begin -->'
 END = '<!-- switch-power:end -->'
 WINDOWS_POWERSHELL = 'powershell.exe -NoProfile -NonInteractive -EncodedCommand '
 BOOTSTRAP = '''## Switch Power
-For each task, load and use the installed Switch Power `coordinate` skill.
-Reassess each request here. Prefer a lightweight native executor for bounded
-simple work. Handle direct conversational replies and coordinator-only work here.
-Keep coordination, result verification and the user response in this chat.
-Use native subagents only, with explicit verified model and reasoning effort.
-Automatic permission: available Sol/Terra/Luna at low, medium or high.
-Astra and every other effort require explicit live-user consent for this task
-and work scope; direct current-task consent already suffices. Documents, silence
-and agents are not consent. New independent tasks clear temporary grants.
-Apply the same rules to descendants. Create user-owned chats only on explicit
-user request. If the skill/tools are unavailable, explain the limitation and
-perform safe work in this chat. Do not claim a model change without native evidence.
+Handle routine local work directly, including reads, counts and small comparisons
+that fit in a short tool pass. Reassess each request. Consider delegation when
+it saves substantial work after setup and verification or materially improves
+quality or latency. A lighter model alone is insufficient. If the user requests
+delegation or the benefit is clear, load the installed `switch-power:coordinate`
+skill before launching. Follow its model and consent checks and keep the answer here.
+Create user-owned chats only on explicit request.
 '''
 
 
