@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Personal global installation through native Codex marketplace commands."""
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ MARKETPLACE = 'switch-power-personal'
 SELECTOR = 'switch-power@' + MARKETPLACE
 BEGIN = '<!-- switch-power:begin -->'
 END = '<!-- switch-power:end -->'
+WINDOWS_POWERSHELL = 'powershell.exe -NoProfile -NonInteractive -EncodedCommand '
 BOOTSTRAP = '''## Switch Power
 For each task, load and use the installed Switch Power `coordinate` skill.
 Reassess each request here. Prefer a lightweight native executor for bounded
@@ -49,19 +51,19 @@ def strip_block(text):
 def bootstrap(home, enabled):
     home = Path(home)
     override = home / 'AGENTS.override.md'
-    target = override if override.exists() and override.read_text().strip() else home / 'AGENTS.md'
+    target = override if override.exists() and override.read_text(encoding='utf-8').strip() else home / 'AGENTS.md'
     for path in [home / 'AGENTS.md', override]:
-        if path.exists() and BEGIN in path.read_text():
-            write_text(path, strip_block(path.read_text()))
+        if path.exists() and BEGIN in path.read_text(encoding='utf-8'):
+            write_text(path, strip_block(path.read_text(encoding='utf-8')))
     if enabled:
-        original = target.read_text() if target.exists() else ''
+        original = target.read_text(encoding='utf-8') if target.exists() else ''
         write_text(target, original + '\n' + BEGIN + '\n' + BOOTSTRAP + END + '\n')
     return str(target)
 
 
 def run(codex, home, *args):
     env = dict(os.environ, CODEX_HOME=str(home))
-    p = subprocess.run([codex, *args], env=env, text=True, capture_output=True)
+    p = subprocess.run([codex, *args], env=env, encoding='utf-8', capture_output=True)
     if p.returncode:
         raise RuntimeError('Native Codex command failed: ' + ' '.join(args) + '\n' + p.stderr + p.stdout)
     return p.stdout.strip()
@@ -69,8 +71,31 @@ def run(codex, home, *args):
 
 def set_enabled(home, enabled):
     path = Path(home) / 'config.toml'
-    text = path.read_text() if path.exists() else ''
+    text = path.read_text(encoding='utf-8') if path.exists() else ''
     write_text(path, set_value(text, ('plugins', SELECTOR), 'enabled', enabled))
+
+
+def powershell_quote(text):
+    return "'" + str(text).replace("'", "''") + "'"
+
+
+def hook_command(script, python, windows=False):
+    if windows:
+        body = f'& {powershell_quote(python)} -X utf8 {powershell_quote(script)}; exit $LASTEXITCODE'
+        return WINDOWS_POWERSHELL + base64.b64encode(body.encode('utf-16-le')).decode('ascii')
+    return shlex.quote(str(python)) + ' ' + shlex.quote(str(script))
+
+
+def owns_hook_command(command, script):
+    try:
+        if command.startswith(WINDOWS_POWERSHELL):
+            encoded = command[len(WINDOWS_POWERSHELL):]
+            body = base64.b64decode(encoded, validate=True).decode('utf-16-le')
+            return body.endswith(f' -X utf8 {powershell_quote(script)}; exit $LASTEXITCODE')
+        parts = shlex.split(command)
+        return len(parts) >= 2 and parts[-1] == str(script)
+    except (ValueError, UnicodeError):
+        return False
 
 
 def global_hooks(home, enabled):
@@ -78,21 +103,16 @@ def global_hooks(home, enabled):
     home = Path(home)
     path = home / 'hooks.json'
     script = home / 'switch-power/marketplace/plugins/switch-power/hooks/guard.py'
-    command = shlex.quote(sys.executable) + ' ' + shlex.quote(str(script))
-    value = json.loads(path.read_text()) if path.exists() else {'hooks': {}}
+    command = hook_command(script, sys.executable, windows=os.name == 'nt')
+    value = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'hooks': {}}
     events = value.setdefault('hooks', {})
     if not isinstance(events, dict):
         raise ValueError('Existing global hooks configuration is not an object')
-    def owned(handler):
-        try:
-            parts = shlex.split(handler.get('command', ''))
-            return len(parts) >= 2 and parts[-1] == str(script)
-        except ValueError:
-            return False
     for event in list(events):
         kept = []
         for group in events[event]:
-            handlers = [h for h in group.get('hooks', []) if not owned(h)]
+            handlers = [h for h in group.get('hooks', []) if not any(
+                owns_hook_command(h.get(key) or '', script) for key in ('command', 'commandWindows'))]
             if handlers:
                 kept.append(dict(group, hooks=handlers))
         if kept:
@@ -103,6 +123,8 @@ def global_hooks(home, enabled):
         for event in ['SessionStart', 'UserPromptSubmit', 'SubagentStart', 'PreToolUse']:
             group = {'hooks': [{'type': 'command', 'command': command, 'timeout': 5,
                                 'statusMessage': 'Switch Power global guard'}]}
+            if os.name == 'nt':
+                group['hooks'][0]['commandWindows'] = command
             if event == 'PreToolUse':
                 group['matcher'] = r'^(spawn_agent|collaboration\.spawn_agent|Agent)$'
             events.setdefault(event, []).append(group)
@@ -150,6 +172,8 @@ def refresh_catalogue(home, codex):
 
 
 def perform(home, codex, action):
+    from runtime import resolve_codex
+    codex = resolve_codex(codex)
     home = Path(home).expanduser().resolve()
     managed = home / 'switch-power'
     market = managed / 'marketplace'
@@ -161,10 +185,19 @@ def perform(home, codex, action):
         if market.exists() and not marker.exists():
             raise ValueError('Existing unowned destination; no files overwritten')
         destination = market / 'plugins/switch-power'
-        version = json.loads((source / 'plugin.json').read_text())['version']
+        version = json.loads((source / 'plugin.json').read_text(encoding='utf-8'))['version']
         if destination.exists():
             shutil.rmtree(destination)
         shutil.copytree(source, destination, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        if os.name == 'nt':
+            hooks_path = destination / 'hooks/hooks.json'
+            definitions = json.loads(hooks_path.read_text(encoding='utf-8'))
+            command = hook_command(destination / 'hooks/guard.py', sys.executable, windows=True)
+            for groups in definitions['hooks'].values():
+                for group in groups:
+                    for hook in group['hooks']:
+                        hook['commandWindows'] = command
+            write_text(hooks_path, json.dumps(definitions, indent=2) + '\n')
         manifest = {'name': MARKETPLACE, 'interface': {'displayName': 'Switch Power Personal'},
             'plugins': [{'name': 'switch-power', 'source': {'source': 'local', 'path': './plugins/switch-power'},
                 'policy': {'installation': 'AVAILABLE', 'authentication': 'ON_INSTALL'},
@@ -213,6 +246,11 @@ def main():
     p.add_argument('--codex', default='codex')
     p.add_argument('action', choices=['install', 'enable', 'disable', 'remove'])
     a = p.parse_args()
+    # Also resolve imports when run from the installed admin directory.
+    plugin = ROOT / 'plugins/switch-power'
+    if not plugin.exists():
+        plugin = ROOT / 'marketplace/plugins/switch-power'
+    sys.path.insert(0, str(plugin / 'scripts'))
     try:
         print(json.dumps(perform(a.codex_home, a.codex, a.action), ensure_ascii=False, indent=2))
         return 0

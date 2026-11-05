@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -91,15 +92,26 @@ notify = ["keep"]
         install.global_hooks(self.home, True)
         path = self.home / 'hooks.json'
         value = json.loads(path.read_text())
-        import shlex
         for groups in value['hooks'].values():
             for group in groups:
                 for handler in group['hooks']:
-                    tokens = shlex.split(handler['command'])
-                    handler['command'] = '/previous/python ' + shlex.quote(tokens[-1])
+                    script = self.home / 'switch-power/marketplace/plugins/switch-power/hooks/guard.py'
+                    handler['command'] = install.hook_command(script, '/previous/python', windows=os.name == 'nt')
+                    if os.name == 'nt':
+                        handler['commandWindows'] = handler['command']
         path.write_text(json.dumps(value))
         install.global_hooks(self.home, False)
         self.assertFalse(path.exists(), 'No Switch Power hooks should survive interpreter replacement')
+
+    def test_windows_hook_command_handles_spaces_and_apostrophes(self):
+        import base64
+        guard_script = r"C:\Users\Ada O'Brien\.codex\switch-power\hooks\guard.py"
+        command = install.hook_command(guard_script, r'C:\Program Files\Python\python.exe', windows=True)
+        encoded = command.split()[-1]
+        body = base64.b64decode(encoded).decode('utf-16-le')
+        self.assertEqual(body, r"& 'C:\Program Files\Python\python.exe' -X utf8 'C:\Users\Ada O''Brien\.codex\switch-power\hooks\guard.py'; exit $LASTEXITCODE")
+        self.assertTrue(install.owns_hook_command(command, guard_script))
+        self.assertFalse(install.owns_hook_command(command, r'C:\other\guard.py'))
 
     def test_configure_restore_does_not_overwrite_later_user_edit(self):
         p = self.home / 'config.toml'

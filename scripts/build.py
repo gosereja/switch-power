@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def build(output):
-    version = json.loads((ROOT / 'plugins/switch-power/plugin.json').read_text())['version']
+    version = json.loads((ROOT / 'plugins/switch-power/plugin.json').read_text(encoding='utf-8'))['version']
     base = 'switch-power-' + version
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,7 @@
 # Runtime CLI and platform boundaries
 
-Use Python 3.11+ on macOS/Linux. Resolve the installed plugin root from this skill
+Use Python 3.11+ on macOS, Linux and Windows. In Windows PowerShell use `py -3`
+or the installed `python` instead of `python3`. Resolve the installed plugin root from this skill
 location, two levels above `skills/coordinate/`. Scripts live at `scripts/runtime.py`.
 Use proper shell quoting for task descriptions and user quotes; prefer structured
 subprocess arguments for arbitrary text. Do not interpolate user text into shell.
@@ -56,9 +57,9 @@ fabricate a prompt event. Safe work can continue in the main chat.
 --priority balanced|quality|speed|limits` ranks **all** compatible catalogue entries.
 This is an optional aid, not an automatic cost decision or a live execution test.
 
-State is private local JSON below `/tmp/switch-power-<uid>-<profile-hash>`,
-with locking and atomic replacement. This stable temporary path is shared by the
-hook and the sandboxed CLI regardless of TMPDIR. It contains
+State is private local JSON below `/tmp/switch-power-<uid>-<profile-hash>` on
+Unix or `%LOCALAPPDATA%\Temp\switch-power-<profile-hash>` on Windows, with
+locking and atomic replacement. Hook and CLI use the same profile-scoped path. It contains
 the latest user prompt to bind consent evidence, plus hashes of quoted grants.
 `finish` clears the session state. Disabling retains it for inspection; the user
 can remove that owned state directory after closing active sessions.

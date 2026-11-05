@@ -12,41 +12,38 @@ Switch Power помогает Codex выбирать исполнителя дл
 до `high` разрешены автоматически. Astra и уровни выше `high` требуют явного
 согласия для конкретной задачи и объёма работ.
 
-Версия 0.1.1. Для установки нужны Python 3.11+ и Codex CLI с командами
+Версия 0.1.2. Для установки нужны Python 3.11+ и Codex CLI с командами
 `plugin marketplace`, `plugin add` и методами app-server `model/list`,
-`skills/list`, `hooks/list`. Установщик рассчитан на macOS и Linux.
-В Windows используйте Linux-среду WSL 2. Установка на WSL 2 отдельно не проверялась.
+`skills/list`, `hooks/list`. Установщик рассчитан на macOS, Linux и Windows.
 
 ## Глобальная установка
 
 Откройте терминал в корне клона репозитория или распакованного архива
-`switch-power-0.1.1.zip`. Проверьте, что `python3` и `codex` доступны в `PATH`.
+`switch-power-0.1.2.zip`.
 
 ### macOS и Linux
 
 ```bash
-python3 scripts/install.py install && python3 scripts/configure.py apply && python3 scripts/verify_native.py
+python3 scripts/setup.py
 ```
 
-### Windows через WSL 2
+### Windows (PowerShell)
 
-Установите Python 3.11+ и войдите в Codex CLI внутри выбранного дистрибутива
-WSL 2. Из его терминала выполните ту же команду, что для Linux. Если исходники
-лежат в папке Windows, откройте PowerShell в этой папке и выполните:
+Откройте обычный PowerShell в папке проекта. Нужны Python с командой `py` и
+нативный Codex CLI. Если Python доступен как `python`, используйте его вместо `py -3`.
 
 ```powershell
-wsl.exe -- bash -lc 'python3 scripts/install.py install && python3 scripts/configure.py apply && python3 scripts/verify_native.py'
+py -3 scripts/setup.py
 ```
 
-Плагин установится в профиль Codex внутри WSL 2. Запускайте Codex и открывайте
-`/hooks` в той же среде. [Codex в WSL 2](https://learn.chatgpt.com/docs/windows/wsl) ·
-[Команды WSL из PowerShell](https://learn.microsoft.com/en-us/windows/dev-environment/wsl-interop)
+Установка использует Windows-профиль `%USERPROFILE%\.codex` или заданный
+`CODEX_HOME`. Если установщик не нашёл CLI, передайте `--codex` с полным путём
+к `codex.exe`. [Codex на Windows](https://learn.chatgpt.com/docs/app/windows)
 
 ### Что делает команда
 
-Команда устанавливает Switch Power, задаёт координатору Sol/high и проверяет
-загрузку плагина. Для установки с текущей моделью достаточно
-`python3 scripts/install.py install`.
+Команда устанавливает Switch Power и проверяет, что Codex обнаружил его.
+Добавьте `--coordinator`, если хотите заодно настроить координатор на Sol/high.
 
 Первый шаг использует штатные команды marketplace/add и plugin/add. Файлы
 устанавливаются в `$CODEX_HOME/switch-power/` (по умолчанию `~/.codex/`), плагин
@@ -100,6 +97,10 @@ python3 ~/.codex/switch-power/admin/install.py disable
 python3 ~/.codex/switch-power/admin/install.py enable
 python3 ~/.codex/switch-power/admin/install.py remove
 ```
+
+В Windows используйте `py -3 "$HOME\.codex\switch-power\admin\install.py" disable`
+в PowerShell. Действия `enable` и `remove` выполняются той же командой с заменой
+последнего слова.
 
 `disable` выключает плагин, удаляет управляемый блок автоприменения и свои глобальные
 hooks. Простое выключение плагина в каталоге не удаляет отдельный AGENTS-блок и

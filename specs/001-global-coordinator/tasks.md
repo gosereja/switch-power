@@ -15,3 +15,8 @@
 - [x] T011 [US1] Reassess each plain user request, favor lightweight executors for bounded work, and initialize task state only for delegation in `skills/coordinate/SKILL.md`.
 - [x] T012 [US3] Fix the reproduced sandbox failures using private temporary session state and a fresh native profile catalogue in `scripts/runtime.py` and `hooks/guard.py`.
 - [x] T013 [US4] Package and verify the installed update, including the existing hook registration and a sandboxed routing check.
+
+## Convergence: native Windows installation
+
+- [x] T014 [US4] Support Windows file locking, native app-server pipes, CLI discovery and Windows hook commands without WSL.
+- [x] T015 [US4] Document one-command install and verify it from the archive on macOS.

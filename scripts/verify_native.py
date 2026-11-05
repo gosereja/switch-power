@@ -11,12 +11,15 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/switch-power'
 sys.path.insert(0, str(PLUGIN / 'scripts'))
-from runtime import CodexRPC
+from runtime import CodexRPC, resolve_codex
+from install import owns_hook_command
 
 SELECTOR = 'switch-power@switch-power-personal'
 
 
 def verify(home, codex='codex', disabled=False):
+    codex = resolve_codex(codex)
+    guard_script = Path(home).resolve() / 'switch-power/marketplace/plugins/switch-power/hooks/guard.py'
     env = dict(os.environ, CODEX_HOME=str(home))
     rpc = CodexRPC(codex, env=env)
     try:
@@ -29,7 +32,7 @@ def verify(home, codex='codex', disabled=False):
             for entry, hook_entry in zip(skills['data'], hooks['data']):
                 selected = [s for s in entry['skills'] if s.get('pluginId') == SELECTOR and s['enabled']]
                 own_hooks = [h for h in hook_entry['hooks'] if h.get('pluginId') == SELECTOR or
-                             'switch-power/marketplace/plugins/switch-power/hooks/guard.py' in h.get('command', '')]
+                             owns_hook_command(h.get('command') or '', guard_script)]
                 if entry.get('errors') or hook_entry.get('errors'):
                     raise ValueError('Native loader errors: ' + str(entry.get('errors', []) + hook_entry.get('errors', [])))
                 if disabled:
@@ -43,8 +46,8 @@ def verify(home, codex='codex', disabled=False):
                                'trust': h['trustStatus']} for h in own_hooks],
                     'loader_errors': []})
             files = [Path(home) / 'AGENTS.override.md', Path(home) / 'AGENTS.md']
-            effective = next((p for p in files if p.exists() and p.read_text().strip()), None)
-            bootstrap = bool(effective and '<!-- switch-power:begin -->' in effective.read_text())
+            effective = next((p for p in files if p.exists() and p.read_text(encoding='utf-8').strip()), None)
+            bootstrap = bool(effective and '<!-- switch-power:begin -->' in effective.read_text(encoding='utf-8'))
             if bootstrap == disabled:
                 raise ValueError('Global bootstrap state does not match requested plugin state')
             result.update(global_bootstrap_present=bootstrap,

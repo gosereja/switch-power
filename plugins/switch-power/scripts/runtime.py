@@ -4,20 +4,49 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
-import fcntl
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import selectors
+import queue
+import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 import policy
+
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
+
+
+def resolve_codex(codex='codex'):
+    if os.name != 'nt':
+        return codex
+    configured = os.environ.get('CODEX_CLI_PATH') if codex == 'codex' else None
+    requested = configured or codex
+    located = shutil.which(requested)
+    if located and Path(located).suffix.lower() == '.exe':
+        return located
+    if requested == 'codex':
+        local = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData/Local'))
+        official = local / 'Programs/OpenAI/Codex/bin/codex.exe'
+        if official.is_file():
+            return str(official)
+        located = located or shutil.which('codex.cmd')
+        if located:
+            package = Path(located).parent / 'node_modules/@openai/codex/node_modules/@openai'
+            binaries = sorted(package.glob('codex-win32-*/vendor/*-pc-windows-msvc/bin/codex.exe'))
+            if len(binaries) == 1:
+                return str(binaries[0])
+    raise FileNotFoundError('Native codex.exe was not found. Install Codex CLI or pass --codex with the path to codex.exe.')
 
 
 def profile_home():
@@ -35,7 +64,7 @@ def atomic_json(path, value):
         raise ValueError('Refusing symlink state file')
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.switch-power-')
     try:
-        with os.fdopen(fd, 'w') as stream:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.write('\n')
         os.replace(tmp, path)
@@ -47,13 +76,21 @@ def atomic_json(path, value):
 class Store:
     def __init__(self, root=None):
         profile = hashlib.sha256(os.fsencode(profile_home())).hexdigest()[:20]
-        default = Path('/tmp') / f'switch-power-{os.getuid()}-{profile}'
+        if os.name == 'nt':
+            local = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData/Local'))
+            default = local / 'Temp' / f'switch-power-{profile}'
+        else:
+            default = Path('/tmp') / f'switch-power-{os.getuid()}-{profile}'
         self.root = Path(root or os.environ.get('SWITCH_POWER_STATE_DIR', default))
 
     def ensure_private(self):
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         info = self.root.lstat()
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        if os.name == 'nt':
+            private = not (info.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        else:
+            private = info.st_uid == os.getuid() and not info.st_mode & 0o077
+        if not stat.S_ISDIR(info.st_mode) or not private:
             raise ValueError('Switch Power needs a private, user-owned state directory')
 
     def key(self, session):
@@ -73,7 +110,7 @@ class Store:
 
     def catalogue(self, session):
         self.ensure_private()
-        return json.loads(self.catalogue_path(session).read_text())
+        return json.loads(self.catalogue_path(session).read_text(encoding='utf-8'))
 
     @contextmanager
     def session(self, session):
@@ -81,33 +118,55 @@ class Store:
         self.ensure_private()
         lock = path.with_suffix('.lock')
         fd = os.open(lock, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-        with os.fdopen(fd, 'r+') as stream:
-            fcntl.flock(stream, fcntl.LOCK_EX)
+        with os.fdopen(fd, 'r+b') as stream:
+            lock_state(stream.fileno())
             if path.is_symlink():
                 raise ValueError('Refusing symlink state')
-            state = json.loads(path.read_text()) if path.exists() else {}
+            state = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
             if not isinstance(state, dict):
                 raise ValueError('Invalid state')
             yield state
             atomic_json(path, state)
 
 
+def lock_state(fd):
+    if os.name != 'nt':
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return
+    deadline = time.monotonic() + 2
+    while True:
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            return
+        except OSError as exc:
+            if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK} or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.025)
+
+
 class CodexRPC:
     """Bounded stdio client for the supported native app-server protocol."""
     def __init__(self, codex='codex', env=None, timeout=25):
-        self.proc = subprocess.Popen([codex, 'app-server', '--stdio'], stdin=subprocess.PIPE,
+        self.proc = subprocess.Popen([resolve_codex(codex), 'app-server', '--stdio'], stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
-        self.selector = selectors.DefaultSelector()
-        self.selector.register(self.proc.stdout, selectors.EVENT_READ)
-        self.buffer = b''
+        self.responses = queue.Queue()
+        self.reader = threading.Thread(target=self.read_responses, daemon=True)
+        self.reader.start()
         self.sequence = 0
         try:
-            self.call('initialize', {'clientInfo': {'name': 'switch-power', 'version': '0.1.1'},
+            self.call('initialize', {'clientInfo': {'name': 'switch-power', 'version': '0.1.2'},
                                     'capabilities': {'experimentalApi': True}}, timeout=timeout)
             self.send({'method': 'initialized'})
         except Exception:
             self.close()
             raise
+
+    def read_responses(self):
+        try:
+            for line in self.proc.stdout:
+                self.responses.put(line)
+        finally:
+            self.responses.put(None)
 
     def send(self, value):
         self.proc.stdin.write(json.dumps(value).encode() + b'\n')
@@ -119,15 +178,12 @@ class CodexRPC:
         self.send({'id': request_id, 'method': method, 'params': params})
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if b'\n' not in self.buffer:
-                if not self.selector.select(max(0, deadline - time.monotonic())):
-                    break
-                data = os.read(self.proc.stdout.fileno(), 65536)
-                if not data:
-                    raise RuntimeError('Native Codex app-server exited; inspect codex doctor')
-                self.buffer += data
-                continue
-            line, self.buffer = self.buffer.split(b'\n', 1)
+            try:
+                line = self.responses.get(timeout=max(0, deadline - time.monotonic()))
+            except queue.Empty:
+                break
+            if line is None:
+                raise RuntimeError('Native Codex app-server exited; inspect codex doctor')
             msg = json.loads(line)
             if msg.get('id') == request_id:
                 if 'error' in msg:
@@ -136,7 +192,6 @@ class CodexRPC:
         raise RuntimeError('Native RPC timeout: ' + method)
 
     def close(self):
-        self.selector.close()
         self.proc.terminate()
         try:
             self.proc.wait(timeout=0.5)
@@ -144,6 +199,7 @@ class CodexRPC:
             self.proc.kill()
             self.proc.wait()
         self.proc.stdin.close()
+        self.reader.join(timeout=0.5)
         self.proc.stdout.close()
 
 
@@ -168,7 +224,7 @@ def fetch_models(codex='codex', env=None, timeout=25):
 
 def cached_profile_catalogue():
     try:
-        value = json.loads(profile_catalogue_path().read_text())
+        value = json.loads(profile_catalogue_path().read_text(encoding='utf-8'))
         age = time.time() - value['fetched_at']
         if -60 <= age <= policy.MAX_CATALOGUE_AGE and value['data']:
             return value

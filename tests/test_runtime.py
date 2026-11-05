@@ -97,6 +97,22 @@ class RuntimeTests(unittest.TestCase):
             with self.store.session('../../outside'):
                 pass
 
+    def test_rpc_transport_reads_responses_from_child_process_pipe(self):
+        worker = '''import json, sys
+for line in sys.stdin:
+    request = json.loads(line)
+    if 'id' in request:
+        print(json.dumps({'id': request['id'], 'result': {'method': request['method']}}), flush=True)
+'''
+        popen = subprocess.Popen
+        with patch.object(runtime.subprocess, 'Popen', side_effect=lambda args, **kw:
+                popen([sys.executable, '-u', '-c', worker], **kw)):
+            rpc = runtime.CodexRPC(sys.executable)
+            try:
+                self.assertEqual(rpc.call('model/list', {}), {'method': 'model/list'})
+            finally:
+                rpc.close()
+
     def test_default_state_is_private_and_shared_across_temp_environments(self):
         with patch.dict(os.environ, {'CODEX_HOME': self.tmp.name, 'TMPDIR': self.tmp.name}):
             os.environ.pop('SWITCH_POWER_STATE_DIR', None)
@@ -109,7 +125,8 @@ class RuntimeTests(unittest.TestCase):
                 state['probe'] = True
             with second.session(self.session) as state:
                 self.assertTrue(state['probe'])
-            self.assertEqual(first.root.stat().st_mode & 0o777, 0o700)
+            if os.name != 'nt':
+                self.assertEqual(first.root.stat().st_mode & 0o777, 0o700)
             self.addCleanup(first.root.rmdir)
             self.addCleanup(first.session_path(self.session).with_suffix('.lock').unlink)
             self.addCleanup(first.session_path(self.session).unlink)

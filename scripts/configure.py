@@ -22,11 +22,11 @@ import policy
 def apply(home, model, effort):
     home = Path(home)
     path = home / 'config.toml'
-    original = path.read_text() if path.exists() else ''
+    original = path.read_text(encoding='utf-8') if path.exists() else ''
     parsed = tomllib.loads(original)
     marker = home / 'switch-power/coordinator-backup.json'
     if marker.exists():
-        saved = json.loads(marker.read_text())
+        saved = json.loads(marker.read_text(encoding='utf-8'))
         if all(parsed.get(k) == v for k, v in saved['applied'].items()):
             saved['applied'] = {'model': model, 'model_reasoning_effort': effort}
         else:
@@ -45,9 +45,9 @@ def apply(home, model, effort):
 def restore(home):
     home = Path(home)
     marker = home / 'switch-power/coordinator-backup.json'
-    saved = json.loads(marker.read_text())
+    saved = json.loads(marker.read_text(encoding='utf-8'))
     path = home / 'config.toml'
-    text = path.read_text()
+    text = path.read_text(encoding='utf-8')
     parsed = tomllib.loads(text)
     if any(parsed.get(k) != v for k, v in saved['applied'].items()):
         raise ValueError('Refusing to overwrite later user changes to coordinator settings')
@@ -70,7 +70,7 @@ def main():
         else:
             os.environ['CODEX_HOME'] = str(a.codex_home)
             c = fetch_models(a.codex)
-            current = tomllib.loads((a.codex_home / 'config.toml').read_text()).get('model') if (a.codex_home / 'config.toml').exists() else None
+            current = tomllib.loads((a.codex_home / 'config.toml').read_text(encoding='utf-8')).get('model') if (a.codex_home / 'config.toml').exists() else None
             if a.action == 'apply':
                 # This exact initial ID was verified against native model/list.
                 target = 'gpt-6.1-sol'

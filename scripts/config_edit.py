@@ -119,7 +119,7 @@ def write_text(path, text):
         raise ValueError('Refusing to replace a symlink: ' + str(path))
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.switch-power-')
     try:
-        with os.fdopen(fd, 'w') as stream:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(text)
         os.replace(tmp, path)
     finally:
