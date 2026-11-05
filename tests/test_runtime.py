@@ -60,6 +60,48 @@ class RuntimeTests(unittest.TestCase):
                             'task_name': name, 'fork_turns': 'none'})
             self.assertEqual(result['hookSpecificOutput'].get('permissionDecision') == 'deny', denied)
 
+    def test_native_namespaced_spawn_cannot_bypass_guard(self):
+        result = self.event('PreToolUse', tool_name='collaborationspawn_agent', tool_input={})
+        self.assertEqual(result['hookSpecificOutput'].get('permissionDecision'), 'deny')
+
+    def test_usage_footer_counts_worker_and_survives_consent_cleanup(self):
+        self.event('PostModelRequest', model='gpt-6.1-sol',
+                   token_usage={'total_tokens': 21})
+        worker = {'agent_id': 'worker', 'turn_id': 'worker-turn', 'model': 'gpt-6-luna'}
+        self.event('SubagentStart', **worker)
+        self.event('PostModelRequest', token_usage={'total_tokens': 13}, **worker)
+        self.event('SubagentStop', **worker)
+        self.cli('finish')
+        self.assertEqual(self.event('Stop', model='gpt-6.1-sol', last_assistant_message='Done'),
+                         {'systemMessage': 'Switch Power · gpt-6.1-sol + gpt-6-luna · 34 tokens'})
+        self.assertEqual(self.event('Stop', model='gpt-6.1-sol', last_assistant_message='Done'), {})
+
+    def test_usage_footer_flags_missing_counts_and_excludes_late_workers(self):
+        self.event('PostModelRequest', model='gpt-6.1-sol', token_usage={'total_tokens': 21})
+        worker = {'agent_id': 'worker', 'turn_id': 'worker-turn', 'model': 'gpt-6-luna'}
+        self.event('SubagentStart', **worker)
+        self.assertIn('partial', self.event('Stop', model='gpt-6.1-sol',
+                                           last_assistant_message='Done')['systemMessage'])
+        self.event('PostModelRequest', model='gpt-6.1-sol', turn_id='t2',
+                   token_usage={'total_tokens': 10})
+        self.event('PostModelRequest', token_usage={'total_tokens': 13}, **worker)
+        self.assertEqual(self.event('Stop', turn_id='t2', model='gpt-6.1-sol',
+                                    last_assistant_message='Done'),
+                         {'systemMessage': 'Switch Power · gpt-6.1-sol · 10 tokens'})
+
+    def test_usage_footer_flags_worker_attempt_without_attribution(self):
+        self.event('PostModelRequest', model='gpt-6.1-sol', token_usage={'total_tokens': 21})
+        self.event('PostModelRequest', model='gpt-6-luna', agent_id='worker',
+                   turn_id='unlinked-worker-turn', token_usage={'total_tokens': 13})
+        self.assertEqual(self.event('Stop', model='gpt-6.1-sol', last_assistant_message='Done'),
+                         {'systemMessage': 'Switch Power · gpt-6.1-sol · 21 tokens (partial)'})
+
+    def test_usage_footer_reports_missing_data_once(self):
+        stop = dict(model='gpt-6.1-sol', last_assistant_message='Done')
+        self.assertEqual(self.event('Stop', **stop),
+                         {'systemMessage': 'Switch Power · gpt-6.1-sol · token usage unavailable'})
+        self.assertEqual(self.event('Stop', **stop), {})
+
     def test_live_prompt_quote_grant_without_second_question(self):
         self.event('UserPromptSubmit', prompt='Используй Astra/xhigh')
         name = self.ready()

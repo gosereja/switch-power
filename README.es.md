@@ -24,11 +24,17 @@ py -3 scripts/setup.py
 
 Si Python está disponible como `python`, úsalo en lugar de `py -3`. Si el instalador no encuentra Codex, pasa `--codex` con la ruta completa a `codex.exe`. La opción `--coordinator` configura GPT‑6.1 Sol con nivel `high` como valor predeterminado.
 
-Después de instalar, abre `/hooks` en Codex CLI, revisa los cuatro hooks de Switch Power y aprueba los que quieras activar. Inicia una nueva sesión de Codex. El complemento se registra en tu perfil y añade un bloque administrado al archivo global `AGENTS.md` o `AGENTS.override.md`.
+Después de instalar, abre `/hooks` en Codex CLI, revisa los hooks de Switch Power y aprueba los que quieras activar. Inicia una nueva sesión de Codex. El complemento se registra en tu perfil y añade un bloque administrado al archivo global `AGENTS.md` o `AGENTS.override.md`.
 
 ## Uso
 
 Escribe una solicitud normal, por ejemplo «Cuenta los archivos `.py` de `scripts/`». El coordinador elige el ejecutor, revisa el resultado y responde en el chat original. En la interfaz V2 verificada, el subagente recibe un encargo con el contexto necesario mediante `fork_turns: "none"`. Codex controla el modelo del chat principal.
+
+## Modelo y consumo de tokens
+
+Switch Power 0.1.3 muestra un aviso de Codex tras la respuesta con los modelos y los tokens registrados para el coordinador y los subagentes asociados. Aprueba los nuevos hooks en **Settings → Hooks** o mediante `/hooks` en la CLI. Si faltan contadores, el aviso indica `partial` o `token usage unavailable`. La posición del aviso depende del cliente de Codex. [Resultados y pasos para reproducir la medición](docs/usage-benchmark.md).
+
+En seis pares válidos de tres tareas pequeñas con archivos, Switch Power consumió 7,18 veces más tokens que Sol/high por sí solo.
 
 ## Desactivar o eliminar
 

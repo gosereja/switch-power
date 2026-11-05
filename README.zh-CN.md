@@ -24,11 +24,17 @@ py -3 scripts/setup.py
 
 如果 Python 命令为 `python`，可用它替换 `py -3`。如果安装程序找不到 Codex，请通过 `--codex` 指定 `codex.exe` 的完整路径。添加 `--coordinator` 可以将协调代理的默认配置设为 GPT‑6.1 Sol 和 `high`。
 
-安装后，在 Codex CLI 中打开 `/hooks`，查看 Switch Power 的四个 hook，并批准要启用的 hook。然后启动新的 Codex 会话。安装程序会在用户配置中注册插件，并在全局 `AGENTS.md` 或 `AGENTS.override.md` 中添加受管理的配置块。
+安装后，在 Codex CLI 中打开 `/hooks`，查看 Switch Power 的 hook，并批准要启用的 hook。然后启动新的 Codex 会话。安装程序会在用户配置中注册插件，并在全局 `AGENTS.md` 或 `AGENTS.override.md` 中添加受管理的配置块。
 
 ## 使用
 
 直接向 Codex 提出普通请求，例如“统计 `scripts/` 中的 `.py` 文件”。协调代理会选择执行者、核查结果，并在原对话中回复。在已验证的 V2 工具接口中，显式指定模型和推理强度时使用 `fork_turns: "none"`，协调代理会在任务说明中提供必要上下文。主对话模型由 Codex 管理。
+
+## 模型和令牌用量
+
+Switch Power 0.1.3 在回复后发出一条 Codex 提示，列出协调代理及可归属子代理的模型和令牌总数。请在应用的 **Settings → Hooks** 或 CLI 的 `/hooks` 中批准新的 hook。数据不全时，提示会显示 `partial` 或 `token usage unavailable`。提示的位置取决于 Codex 客户端。[实测结果和复现步骤](docs/usage-benchmark.md)。
+
+在三个小型文件任务的六组有效对照中，Switch Power 的令牌用量是单独使用 Sol/high 的 7.18 倍。
 
 ## 停用和卸载
 

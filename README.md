@@ -26,13 +26,21 @@ If Python is available as `python`, use it in place of `py -3`. The installer us
 
 Setup installs the plugin and verifies that Codex can discover it. Add `--coordinator` to the same command to set the optional GPT‑6.1 Sol/`high` default.
 
-Open `/hooks` in Codex CLI and review the four Switch Power hooks. Approve the ones you want to enable, then start a new Codex session. The installer registers the plugin for your user profile and adds a managed block to the global `AGENTS.md` or `AGENTS.override.md`. If Codex does not discover the bundled hooks, setup registers them in your profile's `hooks.json`.
+Open `/hooks` in Codex CLI and review the Switch Power hooks. Approve the ones you want to enable, then start a new Codex session. The installer registers the plugin for your user profile and adds a managed block to the global `AGENTS.md` or `AGENTS.override.md`. If Codex does not discover the bundled hooks, setup registers them in your profile's `hooks.json`.
 
 ## Use
 
 Give Codex a normal request such as “Count the `.py` files in `scripts/`.” When a suitable lightweight executor is available, the coordinator delegates the count and checks the result. Your current chat model receives the next request and chooses the route again.
 
 The coordinator selects the model and reasoning effort of each native subagent. The verified V2 tool schema requires `fork_turns: "none"` for explicit overrides, so the coordinator passes the relevant context, boundaries, and acceptance criteria in the assignment. Codex controls the model of the main chat.
+
+## Model and token usage
+
+Switch Power 0.1.3 emits a one-line Codex hook notice after the answer, for example `Switch Power · gpt-6.1-sol + gpt-6-luna · 31,873 tokens`. In the desktop app, review the new hooks in **Settings → Hooks**. In Codex CLI use `/hooks`. The notice uses Codex’s native warning channel, so its placement depends on the client.
+
+The total includes input (including cached input) and output reported by Codex for the coordinator and attributed workers. If known usage is missing, the notice says `partial` or `token usage unavailable`. See the [live benchmark and reproduction steps](docs/usage-benchmark.md).
+
+On three small file tasks, Switch Power used 7.18× as many raw tokens as standalone Sol/high across six valid pairs.
 
 ## Coordinator settings
 

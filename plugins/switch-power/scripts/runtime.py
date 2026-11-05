@@ -114,7 +114,14 @@ class Store:
 
     @contextmanager
     def session(self, session):
-        path = self.session_path(session)
+        with self.locked_state(self.session_path(session)) as state:
+            yield state
+
+    def usage(self, session):
+        return self.locked_state(self.root / (self.key(session) + '.usage.json'))
+
+    @contextmanager
+    def locked_state(self, path):
         self.ensure_private()
         lock = path.with_suffix('.lock')
         fd = os.open(lock, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
