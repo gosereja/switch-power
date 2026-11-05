@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "switch-power",
+  "version": "0.1.1",
+  "description": "Personal Codex coordination with explicit model routing and task-scoped consent.",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "Switch Power",
+        "shortDescription": "Coordinate native agents with scoped model consent",
+        "category": "Productivity"
+      }
+    }
+  }
+}
