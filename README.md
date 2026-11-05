@@ -1,148 +1,74 @@
-# Switch Power для Codex
+# Switch Power for Codex
 
-Switch Power помогает Codex выбирать исполнителя для обычного запроса. Основной
-чат оценивает задачу, при необходимости запускает штатных субагентов, проверяет
-результат и отвечает пользователю. Для каждого следующего запроса решение
-принимается заново, даже в том же чате.
+[English](README.md) · [Español](README.es.md) · [Русский](README.ru.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-Для простого задания вроде подсчёта файлов координатор может выбрать Luna/low.
-Визуальная проверка может подойти Terra, а сложный аудит — Sol. При выборе
-учитываются доступные модели, инструменты, сложность и цена ошибки. Короткий
-вопрос можно обработать в основном чате. Sol, Terra и Luna с уровнями от `low`
-до `high` разрешены автоматически. Astra и уровни выше `high` требуют явного
-согласия для конкретной задачи и объёма работ.
+Switch Power helps Codex choose how to execute each request. The main chat assesses the work, delegates to native subagents when useful, checks their results, and replies in the same conversation. It reassesses each new request, even in an existing chat.
 
-Версия 0.1.2. Для установки нужны Python 3.11+ и Codex CLI с командами
-`plugin marketplace`, `plugin add` и методами app-server `model/list`,
-`skills/list`, `hooks/list`. Установщик рассчитан на macOS, Linux и Windows.
+Counting files can suit Luna with `low` reasoning. A visual review can suit Terra, and a complex audit can suit Sol. The coordinator considers model availability, tool access, ambiguity, and the cost of errors. It can answer short conversational questions directly. Sol, Terra, and Luna with `low`, `medium`, or `high` effort are preapproved. Astra and effort above `high` require explicit consent for the current task and scope.
 
-## Глобальная установка
+## Install
 
-Откройте терминал в корне клона репозитория или распакованного архива
-`switch-power-0.1.2.zip`.
+Version 0.1.2 requires Python 3.11+ and Codex CLI with `plugin marketplace`, `plugin add`, and app-server methods `model/list`, `skills/list`, and `hooks/list`. Run the command from the repository root or the extracted `switch-power-0.1.2.zip` directory.
 
-### macOS и Linux
+**macOS and Linux**
 
 ```bash
 python3 scripts/setup.py
 ```
 
-### Windows (PowerShell)
-
-Откройте обычный PowerShell в папке проекта. Нужны Python с командой `py` и
-нативный Codex CLI. Если Python доступен как `python`, используйте его вместо `py -3`.
+**Windows (PowerShell, native Codex)**
 
 ```powershell
 py -3 scripts/setup.py
 ```
 
-Установка использует Windows-профиль `%USERPROFILE%\.codex` или заданный
-`CODEX_HOME`. Если установщик не нашёл CLI, передайте `--codex` с полным путём
-к `codex.exe`. [Codex на Windows](https://learn.chatgpt.com/docs/app/windows)
+If Python is available as `python`, use it in place of `py -3`. The installer uses `%USERPROFILE%\.codex` or your configured `CODEX_HOME`. If discovery fails, pass `--codex` with the full path to `codex.exe`. [Codex on Windows](https://learn.chatgpt.com/docs/app/windows)
 
-### Что делает команда
+Setup installs the plugin and verifies that Codex can discover it. Add `--coordinator` to the same command to set the optional GPT‑6.1 Sol/`high` default.
 
-Команда устанавливает Switch Power и проверяет, что Codex обнаружил его.
-Добавьте `--coordinator`, если хотите заодно настроить координатор на Sol/high.
+Open `/hooks` in Codex CLI and review the four Switch Power hooks. Approve the ones you want to enable, then start a new Codex session. The installer registers the plugin for your user profile and adds a managed block to the global `AGENTS.md` or `AGENTS.override.md`. If Codex does not discover the bundled hooks, setup registers them in your profile's `hooks.json`.
 
-Первый шаг использует штатные команды marketplace/add и plugin/add. Файлы
-устанавливаются в `$CODEX_HOME/switch-power/` (по умолчанию `~/.codex/`), плагин
-включается на уровне пользователя. Короткий управляемый блок добавляется в
-глобальный AGENTS.md либо существующий AGENTS.override.md. Это реальный механизм
-автоприменения во всех локальных проектах; одного implicit skill недостаточно.
-Существующие настройки и инструкции сохраняются.
+## Use
 
-После настройки просто напишите в Codex «Посчитай файлы `.py` в `scripts/`».
-При подходящем лёгком исполнителе координатор передаст ему подсчёт, а проверенный
-ответ вернёт в исходный чат. Следующий запрос снова оценивает Sol/high, если он
-выбран для основного чата.
+Give Codex a normal request such as “Count the `.py` files in `scripts/`.” When a suitable lightweight executor is available, the coordinator delegates the count and checks the result. Your current chat model receives the next request and chooses the route again.
 
-Установщик проверяет обнаружение hooks. На проверенной версии Codex bundled hooks
-не обнаружились; установщик подключает те же четыре обработчика через штатный
-пользовательский `$CODEX_HOME/hooks.json`, сохраняя другие hooks. Если runtime
-обнаруживает bundled hooks, дополнительное подключение не используется.
+The coordinator selects the model and reasoning effort of each native subagent. The verified V2 tool schema requires `fork_turns: "none"` for explicit overrides, so the coordinator passes the relevant context, boundaries, and acceptance criteria in the assignment. Codex controls the model of the main chat.
 
-**Откройте `/hooks` в Codex CLI и просмотрите/подтвердите четыре обработчика Switch
-Power.** Нативный механизм не запускает пользовательские hooks до review/trust;
-установщик не обходит эту проверку. Затем начните новую сессию Codex или
-перезапустите приложение. В текущий уже открытый чат настройки задним числом не
-внедряются. Это подключение выполняется один раз на пользовательский CODEX_HOME,
-без изменений в каждом проекте. После обновления hooks Codex может потребовать
-повторный review/trust.
+## Coordinator settings
 
-## Основная модель отдельно от плагина
-
-`configure.py apply` сначала читает реальный каталог Codex и только после проверки
-записывает `model = "gpt-6.1-sol"` и `model_reasoning_effort = "high"` в личный
-config.toml. Предыдущие два значения сохраняются для восстановления. Плагин сам
-не переключает модель текущего координатора. Проект, профиль, явный выбор и
-управляемая политика могут переопределить пользовательский default.
+`configure.py apply` checks the native catalogue before setting Sol/`high` and saves the previous two values. `upgrade` only applies an available Sol upgrade declared by the catalogue that supports `high`. On Windows, use `py -3` in place of `python3` for the commands below.
 
 ```bash
 python3 scripts/configure.py inspect
 python3 scripts/configure.py upgrade
+python3 scripts/configure.py restore
 ```
 
-Обновление использует `upgradeInfo.model` / `upgrade` из штатного `model/list`:
-цель должна присутствовать в каталоге, принадлежать Sol и поддерживать high.
-При отсутствии этих сведений команда ничего не меняет. Сортировка названий,
-догадка о следующем ID и подмена Sol на Astra не используются.
+## Disable or remove
 
-## Отключение и удаление
-
-Команды доступны и после удаления распакованного архива:
+Run the corresponding command in the source or extracted directory. Start a new Codex session after changing the plugin state.
 
 ```bash
-python3 ~/.codex/switch-power/admin/install.py disable
-python3 ~/.codex/switch-power/admin/install.py enable
-python3 ~/.codex/switch-power/admin/install.py remove
+python3 scripts/install.py disable
+python3 scripts/install.py enable
+python3 scripts/install.py remove
 ```
 
-В Windows используйте `py -3 "$HOME\.codex\switch-power\admin\install.py" disable`
-в PowerShell. Действия `enable` и `remove` выполняются той же командой с заменой
-последнего слова.
+On Windows, use `py -3 scripts/install.py disable`, `enable`, or `remove`. `disable` removes the managed instruction block and Switch Power's fallback hooks. `remove` also uninstalls the plugin and its marketplace. Restore the coordinator default separately with `configure.py restore`.
 
-`disable` выключает плагин, удаляет управляемый блок автоприменения и свои глобальные
-hooks. Простое выключение плагина в каталоге не удаляет отдельный AGENTS-блок и
-fallback hooks — используйте команду. `remove` дополнительно вызывает штатные
-удаление плагина и marketplace. Исходники и admin-скрипты остаются в
-`~/.codex/switch-power/` для проверки и восстановления настроек.
-
-Настройка координатора отключается отдельно:
-
-```bash
-python3 ~/.codex/switch-power/admin/configure.py restore
-```
-
-Восстановление откажется перезаписывать более позднее ручное изменение модели.
-При нестандартном CODEX_HOME замените путь на соответствующий; все команды также
-принимают `--codex-home /absolute/path` перед действием. Начните новую сессию после
-включения/отключения.
-
-## Проверки и границы
+## Development and verification
 
 ```bash
 python3 -m unittest discover -s tests -v
 python3 scripts/build.py
 ```
 
-- [Архитектура и диагностика](docs/architecture.md)
-- [Результаты тестов и живых проверок](docs/verification.md)
-- [Требования](specs/001-global-coordinator/spec.md), [план](specs/001-global-coordinator/plan.md) и [задачи Spec Kit](specs/001-global-coordinator/tasks.md)
+Version 0.1.2 passed 31 tests and a fresh installation from the archive on macOS. Tests cover Windows hook command formatting. End-to-end testing in native Windows Codex remains open.
 
-Hooks проверяют доступность комбинации, task/scope и запись согласия. Координатор
-определяет, является ли сообщение новой независимой задачей и настоящим согласием,
-а не цитатой из документа. Это проверяемые правила и защитные hooks, а не
-необходимая для недоверенного кода непробиваемая граница безопасности. Среда может
-не перехватывать специальные маршруты; ошибки/таймауты hooks могут пропускать
-вызов. При отсутствии механизмов плагин обязан назвать ограничение.
+Hooks validate the requested model, effort, task scope, and recorded consent for calls they intercept. The coordinator interprets whether a request starts a new task and whether the user's message grants consent. Temporary state includes the latest prompt for matching a consent quote and is cleared on `finish`. A successful spawn shows that Codex accepted the request. Backend model attestation requires separate Codex metadata.
 
-Локальное состояние содержит последний запрос для привязки цитаты согласия и
-очищается командой runtime `finish`. Успешный spawn подтверждает, что Codex
-принял запрос на запуск с указанными параметрами. Фактическую модель backend
-можно подтвердить только по отдельным метаданным Codex.
+- [Architecture and troubleshooting (Russian)](docs/architecture.md)
+- [Verification report (Russian)](docs/verification.md)
+- [Requirements](specs/001-global-coordinator/spec.md) · [Implementation plan](specs/001-global-coordinator/plan.md) · [Spec Kit tasks](specs/001-global-coordinator/tasks.md)
 
-Официальные основания: [плагины](https://developers.openai.com/plugins/build/plugins),
-[глобальный AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
-[hooks](https://learn.chatgpt.com/docs/hooks),
-[GitHub Spec Kit](https://github.com/github/spec-kit).
+[Codex plugins](https://developers.openai.com/plugins/build/plugins) · [Global AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md) · [Codex hooks](https://learn.chatgpt.com/docs/hooks) · [GitHub Spec Kit](https://github.com/github/spec-kit)
