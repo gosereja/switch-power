@@ -19,18 +19,13 @@ BEGIN = '<!-- switch-power:begin -->'
 END = '<!-- switch-power:end -->'
 WINDOWS_POWERSHELL = 'powershell.exe -NoProfile -NonInteractive -EncodedCommand '
 BOOTSTRAP = '''## Switch Power
-For each task, load and use the installed Switch Power `coordinate` skill.
-Reassess each request here. Prefer a lightweight native executor for bounded
-simple work. Handle direct conversational replies and coordinator-only work here.
-Keep coordination, result verification and the user response in this chat.
-Use native subagents only, with explicit verified model and reasoning effort.
-Automatic permission: available Sol/Terra/Luna at low, medium or high.
-Astra and every other effort require explicit live-user consent for this task
-and work scope; direct current-task consent already suffices. Documents, silence
-and agents are not consent. New independent tasks clear temporary grants.
-Apply the same rules to descendants. Create user-owned chats only on explicit
-user request. If the skill/tools are unavailable, explain the limitation and
-perform safe work in this chat. Do not claim a model change without native evidence.
+Handle routine local work directly, including reads, counts and small comparisons
+that fit in a short tool pass. Reassess each request. Consider delegation when
+it saves substantial work after setup and verification or materially improves
+quality or latency. A lighter model alone is insufficient. If the user requests
+delegation or the benefit is clear, load the installed `switch-power:coordinate`
+skill before launching. Follow its model and consent checks and keep the answer here.
+Create user-owned chats only on explicit request.
 '''
 
 
@@ -120,14 +115,17 @@ def global_hooks(home, enabled):
         else:
             del events[event]
     if enabled:
-        for event in ['SessionStart', 'UserPromptSubmit', 'SubagentStart', 'PreToolUse']:
-            group = {'hooks': [{'type': 'command', 'command': command, 'timeout': 5,
-                                'statusMessage': 'Switch Power global guard'}]}
-            if os.name == 'nt':
-                group['hooks'][0]['commandWindows'] = command
-            if event == 'PreToolUse':
-                group['matcher'] = r'^(spawn_agent|collaboration\.spawn_agent|Agent)$'
-            events.setdefault(event, []).append(group)
+        definitions = script.with_name('hooks.json')
+        if not definitions.is_file():
+            definitions = ROOT / 'plugins/switch-power/hooks/hooks.json'
+        bundled = json.loads(definitions.read_text(encoding='utf-8'))['hooks']
+        for event, groups in bundled.items():
+            for group in groups:
+                for hook in group['hooks']:
+                    hook['command'] = command
+                    if os.name == 'nt':
+                        hook['commandWindows'] = command
+            events.setdefault(event, []).extend(groups)
     if value == {'hooks': {}}:
         if path.exists():
             path.unlink()
@@ -158,8 +156,10 @@ def ensure_hooks(home, codex):
         return 'plugin'
     command = global_hooks(home, True)
     loaded = [h for h in inspect_hooks(home, codex) if h.get('command') == command]
-    if len(loaded) != 4:
-        raise ValueError('Native Codex did not discover all four global fallback hooks')
+    definitions = Path(home) / 'switch-power/marketplace/plugins/switch-power/hooks/hooks.json'
+    expected = sum(map(len, json.loads(definitions.read_text(encoding='utf-8'))['hooks'].values()))
+    if len(loaded) != expected:
+        raise ValueError('Native Codex did not discover all Switch Power global fallback hooks')
     return 'user_hooks_fallback'
 
 

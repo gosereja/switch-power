@@ -18,9 +18,10 @@ python3 <plugin-root>/scripts/runtime.py --session ROOT_ID catalog
 
 Supply values from the **actual current spawn schema**, never a hardcoded list
 from this document. Installation seeds a fresh profile catalogue via native
-`model/list`. The trusted user-prompt hook refreshes an expired profile catalogue
-with a bounded read. Runtime uses the fresh snapshot and intersects it with the
-current launch schema per session. An expired catalogue is never used to launch.
+`model/list`. The `catalog` command uses a fresh snapshot or refreshes it from
+Codex when delegation needs it, then intersects it with the launch schema per
+session. Routine prompts do not refresh the catalogue. An expired catalogue is
+never used to launch.
 
 ```text
 runtime.py --session ROOT_ID task --new --description "Independent objective"

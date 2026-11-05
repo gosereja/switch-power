@@ -20,6 +20,8 @@ SELECTOR = 'switch-power@switch-power-personal'
 def verify(home, codex='codex', disabled=False):
     codex = resolve_codex(codex)
     guard_script = Path(home).resolve() / 'switch-power/marketplace/plugins/switch-power/hooks/guard.py'
+    definitions = json.loads(guard_script.with_name('hooks.json').read_text(encoding='utf-8'))['hooks']
+    expected = {name[0].lower() + name[1:] for name in definitions}
     env = dict(os.environ, CODEX_HOME=str(home))
     rpc = CodexRPC(codex, env=env)
     try:
@@ -38,8 +40,8 @@ def verify(home, codex='codex', disabled=False):
                 if disabled:
                     if selected or own_hooks:
                         raise ValueError('Disabled plugin still supplies skills or hooks')
-                elif len(selected) != 1 or len(own_hooks) != 4:
-                    raise ValueError('Expected one enabled skill and four native hooks per project')
+                elif len(selected) != 1 or sorted(h['eventName'] for h in own_hooks) != sorted(expected):
+                    raise ValueError('Expected one enabled skill and all native hooks per project')
                 result['projects'].append({'skill_names': [s['name'] for s in selected],
                     'skill_scope': [s['scope'] for s in selected],
                     'hooks': [{'event': h['eventName'], 'source': h['source'],

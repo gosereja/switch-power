@@ -24,14 +24,20 @@ py -3 scripts/setup.py
 
 Si Python está disponible como `python`, úsalo en lugar de `py -3`. Si el instalador no encuentra Codex, pasa `--codex` con la ruta completa a `codex.exe`. La opción `--coordinator` configura GPT‑6.1 Sol con nivel `high` como valor predeterminado.
 
-Después de instalar, abre `/hooks` en Codex CLI, revisa los cuatro hooks de Switch Power y aprueba los que quieras activar. Inicia una nueva sesión de Codex. El complemento se registra en tu perfil y añade un bloque administrado al archivo global `AGENTS.md` o `AGENTS.override.md`.
+Después de instalar, abre `/hooks` en Codex CLI, revisa los hooks de Switch Power y aprueba los que quieras activar. Inicia una nueva sesión de Codex. El complemento se registra en tu perfil y añade un bloque administrado al archivo global `AGENTS.md` o `AGENTS.override.md`.
 
 ## Uso
 
-Escribe una solicitud normal, por ejemplo «Cuenta los archivos `.py` de `scripts/`». El coordinador elige el ejecutor, revisa el resultado y responde en el chat original. En la interfaz V2 verificada, el subagente recibe un encargo con el contexto necesario mediante `fork_turns: "none"`. Codex controla el modelo del chat principal.
+Escribe una solicitud normal, por ejemplo «Cuenta los archivos `.py` de `scripts/`». El coordinador realiza directamente las lecturas, los recuentos y las comparaciones breves. Delega cuando el beneficio previsto justifica el inicio y la revisión, o si le pides un subagente. En la interfaz V2 verificada, el subagente recibe un encargo con el contexto necesario mediante `fork_turns: "none"`. Codex controla el modelo del chat principal.
+
+## Modelo y consumo de tokens
+
+Switch Power 0.1.4 muestra un aviso de Codex tras la respuesta con los modelos y los tokens registrados para el coordinador y los subagentes asociados. Aprueba los nuevos hooks en **Settings → Hooks** o mediante `/hooks` en la CLI. Si faltan contadores, el aviso indica `partial` o `token usage unavailable`. La posición del aviso depende del cliente de Codex. [Resultados y pasos para reproducir la medición](docs/usage-benchmark.md).
+
+En seis pares nuevos, 0.1.4 consumió en total un 11,0% menos de tokens que Sol/high por sí solo. El complemento resolvió todas las tareas sin subagentes.
 
 ## Desactivar o eliminar
 
 Ejecuta `python3 scripts/install.py disable` desde el proyecto para desactivar el complemento. Usa `enable` para volver a activarlo o `remove` para desinstalarlo. En Windows, sustituye `python3` por `py -3`. `scripts/configure.py restore` restaura por separado el modelo y el nivel de razonamiento del coordinador.
 
-La versión 0.1.2 superó 31 pruebas y una instalación limpia en macOS. Falta comprobar de extremo a extremo el funcionamiento en Codex nativo para Windows. Consulta los [resultados de verificación](docs/verification.md) y la [arquitectura](docs/architecture.md) en ruso.
+La versión 0.1.2 superó 31 pruebas y una instalación limpia en macOS. Falta comprobar de extremo a extremo el funcionamiento en Codex nativo para Windows. Consulta los [resultados de verificación](docs/verification.es.md) y la [arquitectura](docs/architecture.es.md).

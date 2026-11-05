@@ -7,9 +7,9 @@ Input: complete user requirements in this chat.
 
 ### US1 — Coordinate in the original chat (P1)
 Install once, coordinate in every local project. Each user request is assessed
-afresh by the configured coordinator. Route simple bounded work to a light native
-executor when available; direct replies and work requiring the coordinator can
-stay local. Independent complex work can use native subagents. Give bounded briefs,
+afresh by the configured coordinator. Routine work stays local. The current
+delegation threshold is specified in [Economical routing](../003-economical-routing/spec.md).
+Independent complex work can use native subagents. Give bounded briefs,
 check results, answer in the original chat. Acceptance: native installation and
 skill discovery in two unrelated directories; no new user-owned chats.
 

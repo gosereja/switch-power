@@ -1,9 +1,11 @@
 {
   "description": "Switch Power local task and model guardrails",
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
     "SubagentStart": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
-    "PreToolUse": [{"matcher": "^(spawn_agent|collaboration\\.spawn_agent|Agent)$", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}]
+    "PreToolUse": [{"matcher": "^(spawn_agent|collaboration\\.spawn_agent|collaborationspawn_agent|Agent)$", "hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
+    "PostModelRequest": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/hooks/guard.py\"", "timeout": 5}]}]
   }
 }
