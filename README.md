@@ -12,20 +12,41 @@ Switch Power помогает Codex выбирать исполнителя дл
 до `high` разрешены автоматически. Astra и уровни выше `high` требуют явного
 согласия для конкретной задачи и объёма работ.
 
-Версия 0.1.1, macOS/Linux, Python 3.11+ и Codex с командами `plugin marketplace`,
-`plugin add`, app-server `model/list`, `skills/list`, `hooks/list`. Внешний API,
-сервер и отдельная подписка не нужны. Поддержка Windows и cloud не проверена.
+Версия 0.1.1. Для установки нужны Python 3.11+ и Codex CLI с командами
+`plugin marketplace`, `plugin add` и методами app-server `model/list`,
+`skills/list`, `hooks/list`. Установщик рассчитан на macOS и Linux.
+В Windows используйте Linux-среду WSL 2. Установка на WSL 2 отдельно не проверялась.
 
 ## Глобальная установка
 
 Откройте терминал в корне клона репозитория или распакованного архива
 `switch-power-0.1.1.zip`. Проверьте, что `python3` и `codex` доступны в `PATH`.
 
+### macOS и Linux
+
 ```bash
-python3 scripts/install.py install
-python3 scripts/configure.py apply
-python3 scripts/verify_native.py
+python3 scripts/install.py install && python3 scripts/configure.py apply && python3 scripts/verify_native.py
 ```
+
+### Windows через WSL 2
+
+Установите Python 3.11+ и войдите в Codex CLI внутри выбранного дистрибутива
+WSL 2. Из его терминала выполните ту же команду, что для Linux. Если исходники
+лежат в папке Windows, откройте PowerShell в этой папке и выполните:
+
+```powershell
+wsl.exe -- bash -lc 'python3 scripts/install.py install && python3 scripts/configure.py apply && python3 scripts/verify_native.py'
+```
+
+Плагин установится в профиль Codex внутри WSL 2. Запускайте Codex и открывайте
+`/hooks` в той же среде. [Codex в WSL 2](https://learn.chatgpt.com/docs/windows/wsl) ·
+[Команды WSL из PowerShell](https://learn.microsoft.com/en-us/windows/dev-environment/wsl-interop)
+
+### Что делает команда
+
+Команда устанавливает Switch Power, задаёт координатору Sol/high и проверяет
+загрузку плагина. Для установки с текущей моделью достаточно
+`python3 scripts/install.py install`.
 
 Первый шаг использует штатные команды marketplace/add и plugin/add. Файлы
 устанавливаются в `$CODEX_HOME/switch-power/` (по умолчанию `~/.codex/`), плагин
