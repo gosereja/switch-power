@@ -1,0 +1,6 @@
+interface:
+  display_name: "Switch Power coordinator"
+  short_description: "Route native agents with scoped model consent"
+  default_prompt: "Use $coordinate to coordinate this task in the current chat."
+policy:
+  allow_implicit_invocation: true

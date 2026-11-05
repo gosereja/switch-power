@@ -1,0 +1,72 @@
+{
+  "native_version": "codex-cli 0.166.0-alpha.6",
+  "mode": "enabled",
+  "projects": [
+    {
+      "skill_names": [
+        "switch-power:coordinate"
+      ],
+      "skill_scope": [
+        "user"
+      ],
+      "hooks": [
+        {
+          "event": "preToolUse",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "sessionStart",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "userPromptSubmit",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "subagentStart",
+          "source": "user",
+          "trust": "untrusted"
+        }
+      ],
+      "loader_errors": []
+    },
+    {
+      "skill_names": [
+        "switch-power:coordinate"
+      ],
+      "skill_scope": [
+        "user"
+      ],
+      "hooks": [
+        {
+          "event": "preToolUse",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "sessionStart",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "userPromptSubmit",
+          "source": "user",
+          "trust": "untrusted"
+        },
+        {
+          "event": "subagentStart",
+          "source": "user",
+          "trust": "untrusted"
+        }
+      ],
+      "loader_errors": []
+    }
+  ],
+  "global_bootstrap_present": true,
+  "bootstrap_injected_into_model": "not_tested_no_new_chat_created",
+  "actual_hook_interception": "not_tested_requires_trusted_hook_and_real_turn",
+  "backend_model_attestation": "not_available_from_discovery"
+}

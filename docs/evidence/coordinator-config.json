@@ -1,0 +1,30 @@
+[
+  {
+    "action": "apply",
+    "exit": 0,
+    "result": "{\n  \"catalogue_verified\": \"gpt-6.1-sol\",\n  \"effort\": \"high\",\n  \"next_verified_sol\": null,\n  \"note\": \"New sessions may have project/profile/managed overrides\",\n  \"model\": \"gpt-6.1-sol\",\n  \"model_reasoning_effort\": \"high\"\n}\n",
+    "stderr": ""
+  },
+  {
+    "action": "inspect",
+    "exit": 0,
+    "result": "{\n  \"catalogue_verified\": \"gpt-6.1-sol\",\n  \"effort\": \"high\",\n  \"next_verified_sol\": null,\n  \"note\": \"New sessions may have project/profile/managed overrides\"\n}\n",
+    "stderr": ""
+  },
+  {
+    "action": "upgrade",
+    "exit": 0,
+    "result": "{\"changed\": false, \"current\": \"gpt-6.1-sol\", \"reason\": \"Native catalogue supplies no verified Sol upgrade target\"}\n",
+    "stderr": ""
+  },
+  {
+    "native_effective_model": "gpt-6.1-sol",
+    "native_effective_effort": "high"
+  },
+  {
+    "action": "restore",
+    "exit": 0,
+    "result": "{\n  \"restored\": true\n}\n",
+    "stderr": ""
+  }
+]
