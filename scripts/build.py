@@ -14,7 +14,7 @@ def build(output):
     base = 'switch-power-' + version
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
-    files = [ROOT / 'README.md', ROOT / 'LICENSE']
+    files = [*ROOT.glob('README*.md'), ROOT / 'LICENSE']
     for directory in ['plugins', 'scripts', 'tests', 'docs', 'specs/001-global-coordinator']:
         files.extend(p for p in (ROOT / directory).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')
