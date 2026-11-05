@@ -10,7 +10,8 @@ import usage
 from runtime import Store
 
 ROOT_CONTEXT = ('Switch Power: handle short routine work directly. Before beneficial or '
-                'explicitly requested delegation, use the coordinate skill.')
+                'explicitly requested delegation, use the coordinate skill. For demanding work, '
+                'make the routing decision before solving the candidate scope.')
 CHILD_CONTEXT = ('Switch Power: stay within the inherited scope. Use the coordinate skill before '
                  'any further delegation. Inherit permissions and never create or extend grants.')
 

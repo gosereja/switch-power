@@ -21,6 +21,33 @@ chat. The user supplies the task; choose the executor and effort yourself.
 - An explicit request to use a subagent takes precedence over the cost preference.
   All model, tool and consent checks still apply.
 
+## Route unusually demanding work early
+
+Classify from the request and readily available context before investigating or
+solving the candidate scope. A formal proof, a concurrency or security invariant
+under failures, or similarly demanding work where independent reasoning can
+materially improve the result qualifies as complexity 4 and priority quality.
+Register one bounded scope with clear acceptance checks. Use the verified
+catalogue and run `recommend` with `--track-scope` for that scope before starting
+its substantive work. Routine tasks still take the direct path.
+
+- If the first candidate is Astra/ultra, make a scoped `propose` call immediately.
+  Show the pair, scope, and observed end-to-end usage when comparable data exists.
+  With sparse data, say the estimate is unknown and frame the launch as a trial.
+  End the turn at the consent request. On a later exact approval, continue the
+  same task, record the grant, check, then launch and verify the result.
+  For an intervening question about the same proposal, use `task --continue`
+  to include that turn's usage. Preserve the proposal while awaiting consent.
+- For `measure_sol` or `prefer_sol`, do the tracked scope directly when the
+  coordinator is Sol and the user permits direct work. Honor explicit user
+  instructions about delegation or model. For a declined or unavailable
+  launch, use the permitted fallback.
+- Before `finish`, call `outcome` for the tracked scope with `--verified yes` only
+  if the selected route's own result passed its acceptance checks. Record
+  `no` if the route failed verification, even if later fallback work succeeds.
+  The native hooks supply measured tokens. If telemetry is unavailable, finish
+  the task and report the work normally.
+
 Separate user-owned chats require a direct user request. Follow-up corrections
 continue the same task and its exact consent scope. A new independent objective
 clears temporary grants before delegation. The configured coordinator receives

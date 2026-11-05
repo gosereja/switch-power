@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import re
+from statistics import median
 import time
 import uuid
 
 AUTO_EFFORTS = {'low', 'medium', 'high'}
 MAX_CATALOGUE_AGE = 86400
+ASTRA_TRIAL = ('gpt-6-astra', 'ultra')
+SAMPLE_MAX_AGE = 30 * 86400
 
 
 def family(model):
@@ -81,11 +84,11 @@ def grant(state, model, effort, scope, source, turn_id, quote):
     if scope not in state.get('scopes', {}):
         raise ValueError('Unknown work scope')
     pending = state.get('pending')
-    # Short answers only refer to a specific previously presented proposal.
-    if quote.strip().lower() in {'да', 'yes', 'ок', 'ok', 'согласен', 'согласна'}:
+    short_approval = quote.strip().lower() in {'да', 'yes', 'ок', 'ok', 'согласен', 'согласна'}
+    if pending or short_approval:
         if not pending or any(pending[k] != v for k, v in
                               [('model', model), ('effort', effort), ('scope', scope)]):
-            raise ValueError('A short approval needs the exact pending proposal')
+            raise ValueError('Proposal approval needs the exact pending model, effort and scope')
         if pending.get('turn_id') == turn_id:
             raise ValueError('A proposal cannot be accepted before a later user turn')
     item = {'task_id': state['task_id'], 'model': model, 'effort': effort,
@@ -154,12 +157,46 @@ def upgrade(catalogue, current):
     return target
 
 
-def recommend(catalogue, kind, complexity, ambiguity, priority, now=None):
+def routing_bucket(kind, complexity, ambiguity, priority):
+    if kind in {'analysis', 'code'} and complexity == 4 and priority == 'quality':
+        return f'{kind}:{complexity}:{ambiguity}'
+    return None
+
+
+def routing_evidence(samples, bucket, coordinator, now):
+    routes = {'astra': [], 'sol': []}
+    for sample in samples:
+        if (sample['bucket'] == bucket and sample['coordinator'] == coordinator
+                and 0 <= now - sample['recorded_at'] <= SAMPLE_MAX_AGE):
+            routes[sample['route']].append(sample)
+    evidence = {}
+    for route, records in routes.items():
+        verified = [r['total_tokens'] for r in records if r['verified']]
+        evidence[route] = {'runs': len(records), 'verified': len(verified),
+                           'median_total_tokens': median(verified) if verified else None}
+    astra, sol = evidence['astra'], evidence['sol']
+    if astra['runs'] >= 3 and sol['verified'] < 3 and sol['runs'] < 6:
+        decision = 'measure_sol'
+    elif astra['runs'] >= 3 and astra['verified'] == 0 and sol['verified'] >= 3:
+        decision = 'prefer_sol'
+    elif min(astra['verified'], sol['verified']) < 3:
+        decision = 'trial'
+    elif (astra['median_total_tokens'] > 1.25 * sol['median_total_tokens']
+          and astra['verified'] * sol['runs'] <= sol['verified'] * astra['runs']):
+        decision = 'prefer_sol'
+    else:
+        decision = 'propose'
+    return dict(evidence, decision=decision)
+
+
+def recommend(catalogue, kind, complexity, ambiguity, priority, now=None,
+              samples=(), coordinator=None):
     """Rank all launchable entries, using live descriptions plus initial family priors.
 
     A recommendation is advisory. The coordinator must inspect tool requirements
     and current official capability guidance before committing to the choice.
     """
+    now = time.time() if now is None else now
     effort = 'high' if max(complexity, ambiguity) >= 3 else ('medium' if max(complexity, ambiguity) >= 1 else 'low')
     candidates = []
     for row in catalogue.get('data', []):
@@ -190,4 +227,20 @@ def recommend(catalogue, kind, complexity, ambiguity, priority, now=None):
         candidates.append({'model': model, 'reasoning_effort': effort, 'score': score,
                            'description': row.get('description', ''),
                            'requires_consent': restricted, 'status': 'recommendation_only'})
-    return sorted(candidates, key=lambda c: (-c['score'], c['requires_consent'], c['model']))
+    ranked = sorted(candidates, key=lambda c: (-c['score'], c['requires_consent'], c['model']))
+    bucket = routing_bucket(kind, complexity, ambiguity, priority)
+    if bucket is None:
+        return ranked
+    model, effort = ASTRA_TRIAL
+    try:
+        row = available(catalogue, model, effort, now)
+    except ValueError:
+        return ranked
+    evidence = routing_evidence(samples, bucket, coordinator, now)
+    candidate = {'model': model, 'reasoning_effort': effort, 'score': None,
+                 'description': row.get('description', ''), 'requires_consent': True,
+                 'status': 'recommendation_only', 'evidence': evidence}
+    if evidence['decision'] in {'measure_sol', 'prefer_sol'}:
+        ranked.sort(key=lambda c: family(c['model']) != 'sol')
+        return ranked + [candidate]
+    return [candidate] + ranked

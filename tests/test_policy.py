@@ -103,6 +103,20 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             policy.grant(self.s, 'gpt-6-astra', 'xhigh', 'review', 'live_user', 'second', 'да')
 
+    def test_full_proposal_approval_needs_exact_tuple_and_later_turn(self):
+        text = 'Согласен на этот вариант'
+        policy.capture_prompt(self.s, 'first', text)
+        policy.continue_task(self.s)
+        policy.propose(self.s, 'gpt-6-astra', 'high', 'review', 'Deep independent review')
+        with self.assertRaises(ValueError):
+            policy.grant(self.s, 'gpt-6-astra', 'high', 'review', 'live_user', 'first', text)
+        policy.capture_prompt(self.s, 'second', text)
+        policy.continue_task(self.s)
+        with self.assertRaises(ValueError):
+            policy.grant(self.s, 'gpt-6-astra', 'xhigh', 'review', 'live_user', 'second', text)
+        policy.grant(self.s, 'gpt-6-astra', 'high', 'review', 'live_user', 'second', text)
+        self.assertTrue(self.check('gpt-6-astra', 'high')['allowed'])
+
     def test_unavailable_model_effort_stale_catalogue_and_inheritance(self):
         for m, e in [('imagined-model', 'high'), ('gpt-reserve', 'high'),
                      ('gpt-6.1-sol', 'ultra')]:
@@ -131,6 +145,55 @@ class PolicyTests(unittest.TestCase):
         self.c['data'][3]['upgradeInfo'] = {'model': 'made-up-sol'}
         with self.assertRaises(ValueError):
             policy.upgrade(self.c, 'gpt-6-sol')
+
+    def test_demanding_quality_work_proposes_supported_astra_ultra_early(self):
+        self.c['spawn_efforts'].append('ultra')
+        astra = next(r for r in self.c['data'] if r['model'] == 'gpt-6-astra')
+        astra['supportedReasoningEfforts'].append({'reasoningEffort': 'ultra'})
+        route = policy.recommend(self.c, 'analysis', 4, 2, 'quality', now=1001)
+        self.assertEqual((route[0]['model'], route[0]['reasoning_effort']),
+                         ('gpt-6-astra', 'ultra'))
+        self.assertTrue(route[0]['requires_consent'])
+        self.assertEqual(route[0]['evidence']['decision'], 'trial')
+        for complexity, priority in [(3, 'quality'), (4, 'balanced')]:
+            route = policy.recommend(self.c, 'analysis', complexity, 2, priority, now=1001)
+            self.assertFalse(any(row['reasoning_effort'] == 'ultra' for row in route))
+        self.c['spawn_efforts'].remove('ultra')
+        route = policy.recommend(self.c, 'analysis', 4, 2, 'quality', now=1001)
+        self.assertFalse(any(row['reasoning_effort'] == 'ultra' for row in route))
+
+    def test_observed_usage_drives_comparison_and_sol_calibration(self):
+        self.c['spawn_efforts'].append('ultra')
+        astra = next(r for r in self.c['data'] if r['model'] == 'gpt-6-astra')
+        astra['supportedReasoningEfforts'].append({'reasoningEffort': 'ultra'})
+        coordinator = 'gpt-6.1-sol'
+        sample = dict(bucket='analysis:4:2', coordinator=coordinator, recorded_at=1000,
+                      route='astra', total_tokens=150, verified=True)
+        baseline = dict(sample, route='sol', total_tokens=100)
+        irrelevant = [dict(baseline, bucket='code:4:2'), dict(baseline, coordinator='gpt-6-sol'),
+                      dict(baseline, recorded_at=-30 * 86400)]
+
+        def rank(samples):
+            return policy.recommend(self.c, 'analysis', 4, 2, 'quality', now=1001,
+                                    coordinator=coordinator, samples=samples)
+
+        ranked = rank([sample] * 3 + irrelevant)
+        self.assertEqual(ranked[0]['model'], coordinator)
+        self.assertEqual(ranked[-1]['evidence']['decision'], 'measure_sol')
+        ranked = rank([sample] * 3 + [baseline] * 2 + [dict(baseline, verified=False)])
+        self.assertEqual(ranked[-1]['evidence']['decision'], 'measure_sol')
+        ranked = rank([dict(sample, verified=False)] * 3)
+        self.assertEqual(ranked[-1]['evidence']['decision'], 'measure_sol')
+        ranked = rank([dict(sample, verified=False)] * 3 + [baseline] * 3)
+        self.assertEqual(ranked[-1]['evidence']['decision'], 'prefer_sol')
+        ranked = rank([sample] * 3 + [baseline] * 3)
+        self.assertEqual(ranked[0]['model'], coordinator)
+        self.assertEqual(ranked[-1]['evidence']['decision'], 'prefer_sol')
+        self.assertEqual(ranked[-1]['evidence']['astra']['median_total_tokens'], 150)
+        ranked = rank([dict(sample, total_tokens=120)] * 3 + [baseline] * 3)
+        self.assertEqual(ranked[0]['evidence']['decision'], 'propose')
+        ranked = rank([sample] * 3 + [baseline] * 3 + [dict(baseline, verified=False)])
+        self.assertEqual(ranked[0]['evidence']['decision'], 'propose')
 
     def test_recommendation_uses_catalogue_and_launch_intersection(self):
         result = policy.recommend(self.c, 'visual', 1, 1, 'balanced', now=1001)

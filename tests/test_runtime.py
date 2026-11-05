@@ -60,6 +60,119 @@ class RuntimeTests(unittest.TestCase):
                             'task_name': name, 'fork_turns': 'none'})
             self.assertEqual(result['hookSpecificOutput'].get('permissionDecision') == 'deny', denied)
 
+    def test_astra_proposal_records_native_usage_across_consent_and_verification(self):
+        c = self.store.catalogue(self.session)
+        c['spawn_efforts'].append('ultra')
+        astra = next(r for r in c['data'] if r['model'] == 'gpt-6-astra')
+        astra['supportedReasoningEfforts'].append({'reasoningEffort': 'ultra'})
+        self.store.write_catalogue(self.session, c)
+        sol = 'gpt-6.1-sol'
+        stop = {'model': sol, 'last_assistant_message': 'Done'}
+        self.event('UserPromptSubmit', prompt='Review a distributed protocol')
+        self.event('PostModelRequest', model=sol, token_usage={
+            'input_tokens': 18, 'cached_input_tokens': 7, 'output_tokens': 3,
+            'reasoning_output_tokens': 2, 'total_tokens': 21})
+        name = self.ready()
+        route = self.cli('recommend', '--kind', 'analysis', '--complexity', '4',
+                         '--ambiguity', '2', '--priority', 'quality', '--track-scope', 'review')
+        self.assertEqual(route[0]['reasoning_effort'], 'ultra')
+        target = ('--model', 'gpt-6-astra', '--effort', 'ultra', '--scope', 'review')
+        self.cli('propose', *target, '--reason', 'Check the proof independently')
+        launch = dict(tool_name='spawn_agent', tool_input=dict(
+            model='gpt-6-astra', reasoning_effort='ultra', task_name=name, fork_turns='none'))
+        self.assertEqual(self.event('PreToolUse', **launch)['hookSpecificOutput']
+                         ['permissionDecision'], 'deny')
+        self.event('Stop', **stop)
+        self.event('UserPromptSubmit', turn_id='clarify', prompt='What would the agent verify?')
+        self.event('PostModelRequest', turn_id='clarify', model=sol, token_usage={'total_tokens': 4})
+        self.cli('task', '--continue')
+        self.event('Stop', turn_id='clarify', **stop)
+
+        self.event('UserPromptSubmit', turn_id='t2', prompt='да')
+        self.event('PostModelRequest', turn_id='t2', model=sol, token_usage={'total_tokens': 8})
+        self.cli('task', '--continue')
+        self.cli('grant', *target, '--source', 'live_user', '--turn-id', 't2', '--quote', 'да')
+        allowed = self.event('PreToolUse', turn_id='t2', **launch)
+        self.assertNotEqual(allowed['hookSpecificOutput'].get('permissionDecision'), 'deny')
+        worker = {'agent_id': 'worker', 'turn_id': 'worker-turn', 'model': 'gpt-6-astra'}
+        self.event('SubagentStart', **worker)
+        self.event('PostModelRequest', token_usage={'total_tokens': 13}, **worker)
+        self.event('SubagentStop', **worker)
+        self.event('PostModelRequest', turn_id='t2', model=sol, token_usage={'total_tokens': 5})
+        self.cli('outcome', '--scope', 'review', '--verified', 'yes')
+        self.cli('finish')
+        self.event('Stop', turn_id='t2', **stop)
+        self.event('Stop', turn_id='t2', **stop)
+
+        with self.store.routing_history() as history:
+            sample, = history['samples']
+        self.assertEqual(sample['route'], 'astra')
+        self.assertEqual(sample['proposal']['total_tokens'], 21)
+        self.assertEqual(sample['proposal']['cached_input_tokens'], 7)
+        self.assertEqual(sample['clarification']['total_tokens'], 4)
+        self.assertEqual(sample['setup']['total_tokens'], 8)
+        self.assertEqual(sample['worker']['total_tokens'], 13)
+        self.assertEqual(sample['verification']['total_tokens'], 5)
+        self.assertEqual(sample['total_tokens'], 51)
+        self.assertTrue(sample['verified'])
+
+    def test_routing_history_discards_astra_attempts_missing_proposal_or_verification(self):
+        proposal = {'total_tokens': 21}
+        route = {'task_id': 'example', 'scope': 'review', 'bucket': 'analysis:4:2',
+                 'first_turn': 't2', 'continued_turn': 't2', 'coordinator': 'gpt-6.1-sol',
+                 'outcome': {'turn': 't2', 'verified': True}}
+        phases = {'setup': {'total_tokens': 8}, 'worker': {'total_tokens': 13}}
+        cases = [
+            (dict(route, proposal_turn='t1', proposal=proposal), phases),
+            (route, dict(phases, verification={'total_tokens': 5})),
+        ]
+        for trial, counters in cases:
+            observed = {'route': trial, 'turn': 't2', 'coordinators': {'gpt-6.1-sol': None},
+                        'phases': counters, 'launches': 1, 'workers': {'worker-turn': {}},
+                        'measured_launch': 'sp_example__review', 'worker_models': {'gpt-6-astra': None}}
+            guard.usage.save_route(observed, self.store, False)
+        with self.store.routing_history() as history:
+            self.assertEqual(history.get('samples', []), [])
+
+    def test_routing_baseline_requires_complete_sol_usage_and_verified_outcome(self):
+        for index, tokens in enumerate([45, None, 12]):
+            turn = f'solo-{index}'
+            self.event('UserPromptSubmit', turn_id=turn, prompt='Review a protocol')
+            self.event('PostModelRequest', turn_id=turn, model='gpt-6.1-sol',
+                       token_usage={'total_tokens': tokens})
+            self.ready()
+            self.cli('recommend', '--kind', 'analysis', '--complexity', '4', '--ambiguity', '2',
+                     '--priority', 'quality', '--track-scope', 'review')
+            if index != 2:
+                self.cli('outcome', '--scope', 'review', '--verified', 'yes')
+            self.cli('finish')
+            self.event('Stop', turn_id=turn, model='gpt-6.1-sol', last_assistant_message='Done')
+        with self.store.routing_history() as history:
+            sample, = history['samples']
+        self.assertEqual((sample['route'], sample['total_tokens']), ('sol', 45))
+
+    def test_bad_telemetry_does_not_disable_astra_consent(self):
+        c = self.store.catalogue(self.session)
+        c['spawn_efforts'].append('ultra')
+        astra = next(r for r in c['data'] if r['model'] == 'gpt-6-astra')
+        astra['supportedReasoningEfforts'].append({'reasoningEffort': 'ultra'})
+        self.store.write_catalogue(self.session, c)
+        self.event('UserPromptSubmit', prompt='Review a protocol')
+        name = self.ready()
+        (self.store.root / (self.store.key(self.session) + '.usage.json')).write_text('{broken')
+        route = self.cli('recommend', '--kind', 'analysis', '--complexity', '4',
+                         '--ambiguity', '2', '--priority', 'quality', '--track-scope', 'review')
+        self.assertEqual(route[0]['reasoning_effort'], 'ultra')
+        target = ('--model', 'gpt-6-astra', '--effort', 'ultra', '--scope', 'review')
+        self.cli('propose', *target, '--reason', 'Independent verification')
+        self.event('UserPromptSubmit', turn_id='t2', prompt='да')
+        self.cli('task', '--continue')
+        self.cli('grant', *target, '--source', 'live_user', '--turn-id', 't2', '--quote', 'да')
+        result = self.event('PreToolUse', turn_id='t2', tool_name='spawn_agent', tool_input={
+            'model': 'gpt-6-astra', 'reasoning_effort': 'ultra',
+            'task_name': name, 'fork_turns': 'none'})
+        self.assertNotEqual(result['hookSpecificOutput'].get('permissionDecision'), 'deny')
+
     def test_native_namespaced_spawn_cannot_bypass_guard(self):
         result = self.event('PreToolUse', tool_name='collaborationspawn_agent', tool_input={})
         self.assertEqual(result['hookSpecificOutput'].get('permissionDecision'), 'deny')

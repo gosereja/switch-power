@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import errno
 import hashlib
 import json
@@ -20,6 +20,7 @@ import threading
 import time
 
 import policy
+import usage
 
 if os.name == 'nt':
     import msvcrt
@@ -119,6 +120,9 @@ class Store:
 
     def usage(self, session):
         return self.locked_state(self.root / (self.key(session) + '.usage.json'))
+
+    def routing_history(self):
+        return self.locked_state(self.root / 'routing-history.json')
 
     @contextmanager
     def locked_state(self, path):
@@ -295,6 +299,10 @@ def parser():
     r.add_argument('--complexity', type=int, choices=range(5), required=True)
     r.add_argument('--ambiguity', type=int, choices=range(5), required=True)
     r.add_argument('--priority', choices=['balanced', 'quality', 'speed', 'limits'], default='balanced')
+    r.add_argument('--track-scope')
+    o = subs.add_parser('outcome')
+    o.add_argument('--scope', required=True)
+    o.add_argument('--verified', choices=['yes', 'no'], required=True)
     return p
 
 
@@ -309,8 +317,27 @@ def main(argv=None):
             store.write_catalogue(args.session, value)
             result = value
         elif args.command == 'recommend':
-            result = policy.recommend(store.catalogue(args.session), args.kind,
-                                      args.complexity, args.ambiguity, args.priority)
+            catalogue = store.catalogue(args.session)
+            bucket = policy.routing_bucket(args.kind, args.complexity, args.ambiguity, args.priority)
+            samples, coordinator = [], None
+            if bucket:
+                with store.session(args.session) as state:
+                    turn = state.get('turn_id')
+                    if args.track_scope and (state.get('needs_resolution') or not turn
+                                             or args.track_scope not in state.get('scopes', {})):
+                        raise ValueError('Tracking requires a resolved task, captured turn and registered scope')
+                    with suppress(OSError, ValueError), store.usage(args.session) as observed:
+                        if turn and turn == observed.get('turn'):
+                            models = observed.get('coordinators', {})
+                            if len(models) == 1:
+                                coordinator = next(iter(models))
+                        if args.track_scope:
+                            usage.track_scope(observed, state['task_id'], args.track_scope, turn, bucket)
+                with suppress(OSError, ValueError), store.routing_history() as history:
+                    samples = history.get('samples', [])
+            result = policy.recommend(catalogue, args.kind, args.complexity,
+                                      args.ambiguity, args.priority, samples=samples,
+                                      coordinator=coordinator)
         else:
             with store.session(args.session) as state:
                 if args.command == 'task':
@@ -323,6 +350,13 @@ def main(argv=None):
                         state.update(fresh)
                     else:
                         policy.continue_task(state)
+                        pending = state.get('pending') or {}
+                        if (pending.get('model'), pending.get('effort')) == policy.ASTRA_TRIAL:
+                            with suppress(OSError, ValueError), store.usage(args.session) as observed:
+                                route = observed.get('route')
+                                if (route and not route.get('closed') and 'proposal_turn' in route
+                                        and route['task_id'] == state['task_id']):
+                                    route['continued_turn'] = state.get('turn_id')
                     result = {'task_id': state['task_id'], 'description': state['description']}
                 elif args.command == 'scope':
                     result = {'task_name': policy.add_scope(state, args.id, args.description)}
@@ -333,6 +367,20 @@ def main(argv=None):
                 elif args.command == 'propose':
                     policy.available(store.catalogue(args.session), args.model, args.effort)
                     result = policy.propose(state, args.model, args.effort, args.scope, args.reason)
+                    if (args.model, args.effort) == policy.ASTRA_TRIAL:
+                        with suppress(OSError, ValueError), store.usage(args.session) as observed:
+                            route = observed.get('route')
+                            if (route and route['task_id'] == state['task_id']
+                                    and route['scope'] == args.scope
+                                    and route['first_turn'] == state.get('turn_id')):
+                                route['proposal_turn'] = state['turn_id']
+                elif args.command == 'outcome':
+                    if state.get('needs_resolution') or not state.get('turn_id'):
+                        raise ValueError('Resolve the current captured turn before recording an outcome')
+                    with store.usage(args.session) as observed:
+                        usage.mark_outcome(observed, state['task_id'], args.scope,
+                                           state['turn_id'], args.verified == 'yes')
+                    result = {'outcome_recorded': True}
                 elif args.command == 'failed':
                     policy.mark_failed(state, args.model, args.effort, args.scope, args.reason)
                     result = {'recorded': True}

@@ -47,16 +47,39 @@ runtime.py --session ROOT_ID failed --model EXACT_ID --effort medium
 runtime.py --session ROOT_ID finish
 ```
 
-Short yes/да requires an exact earlier pending proposal and a later captured
-user turn. Direct consent requires no proposal. Only the coordinator records
+Approval of a pending proposal requires the exact tuple and scope and a later
+captured user turn. Direct consent requires no proposal. Only the coordinator records
 consent; child agents may check the inherited task, but never grant or redefine it.
 If hooks are not trusted and no real prompt was captured, restricted permission
 cannot be recorded through this helper. Explain the trust/setup limit; do not
 fabricate a prompt event. Safe work can continue in the main chat.
 
-`recommend --kind narrow|visual|code|analysis --complexity 0..4 --ambiguity 0..4
---priority balanced|quality|speed|limits` ranks **all** compatible catalogue entries.
-This is an optional aid, not an automatic cost decision or a live execution test.
+```text
+runtime.py --session ROOT_ID recommend --kind analysis --complexity 4 --ambiguity 2
+  --priority quality --track-scope review
+runtime.py --session ROOT_ID outcome --scope review --verified yes
+```
+
+Use `--track-scope` after `task` and `scope` for complexity-4 analysis or code
+with quality priority. The ranking includes Astra/ultra only when the native
+catalogue and launch schema support it. A recommendation grants no permission.
+Track one scope per task and call `outcome` before `finish` on the completion turn.
+
+The local history compares verified end-to-end totals for the same work class,
+ambiguity and observed coordinator model over the last 30 days. It separates
+proposal, clarification, launch setup, worker usage and coordinator verification.
+Cached input is reported separately when observed. Incomplete or mismatched
+native events do not enter the history. The history stores numeric counters
+and routing metadata. Raw totals include cached input and are not credits.
+
+After three measured Astra runs in a class, the policy calibrates with direct Sol
+until it has three verified results or six attempts. It prefers Sol when both
+paths have three verified results and Astra's median total is more than 25%
+higher with no better verification rate. It also prefers Sol when Sol meets
+the verification threshold and none of the measured Astra results passed.
+With sparse data it can propose a trial.
+These observational comparisons are approximate, since the tasks can differ
+within a class and coordinator verification is not a blind quality score.
 
 State is private local JSON below `/tmp/switch-power-<uid>-<profile-hash>` on
 Unix or `%LOCALAPPDATA%\Temp\switch-power-<profile-hash>` on Windows, with
